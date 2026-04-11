@@ -1679,19 +1679,21 @@ document.addEventListener('keydown', e => {
 });
 
 // 5 кликов по логотипу (для планшета)
-document.addEventListener('DOMContentLoaded', () => {
-  const logo = document.querySelector('.game-logo');
-  if (!logo) return;
-  logo.addEventListener('click', () => {
-    _logoClicks++;
-    clearTimeout(_logoTimer);
-    _logoTimer = setTimeout(() => _logoClicks = 0, 2500);
-    if (_logoClicks >= 5) {
-      _logoClicks = 0;
-      openPwdModal();
-    }
+(function() {
+  const logos = document.querySelectorAll('.game-logo');
+  logos.forEach(logo => {
+    logo.style.cursor = 'pointer';
+    logo.addEventListener('click', () => {
+      _logoClicks++;
+      clearTimeout(_logoTimer);
+      _logoTimer = setTimeout(() => _logoClicks = 0, 2500);
+      if (_logoClicks >= 5) {
+        _logoClicks = 0;
+        openPwdModal();
+      }
+    });
   });
-});
+})();
 // ============ FIREBASE LEADERBOARD ============
 async function pushToLeaderboard() {
   if (!window._firebaseReady) return;
