@@ -1,0 +1,1863 @@
+<!DOCTYPE html>
+<html lang="ru" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ChemQuest — Химический Герой</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+<script type="module">
+  import { initializeApp }
+    from 'https://www.gstatic.com/firebasejs/10.11.0/firebase-app.js';
+  import { getFirestore, doc, setDoc, getDoc, getDocs,
+           collection, query, orderBy, where, limit }
+    from 'https://www.gstatic.com/firebasejs/10.11.0/firebase-firestore.js';
+  import { getAuth, signInWithPopup, GoogleAuthProvider, onAuthStateChanged }
+    from 'https://www.gstatic.com/firebasejs/10.11.0/firebase-auth.js';
+
+  const firebaseConfig = {
+    apiKey: "AIzaSyDVWuL0-wTKW-JlbkFpSrdW7b0h4MsMEyM",
+    authDomain: "chemquest-9febc.firebaseapp.com",
+    projectId: "chemquest-9febc",
+    storageBucket: "chemquest-9febc.firebasestorage.app",
+    messagingSenderId: "915052698548",
+    appId: "1:915052698548:web:67a61f32d0666e06f4b0e1"
+  };
+
+  const app      = initializeApp(firebaseConfig);
+  const db       = getFirestore(app);
+  const auth     = getAuth(app);
+  const provider = new GoogleAuthProvider();
+
+  // Глобальный вход через Google
+  window.signInWithGoogle = async function() {
+    try {
+      const result = await signInWithPopup(auth, provider);
+      return result.user;
+    } catch(e) {
+      console.warn('Google sign-in error:', e);
+      return null;
+    }
+  };
+
+  onAuthStateChanged(auth, user => {
+    if (user) {
+      window._firebaseUID   = user.uid;
+      window._firebaseReady = true;
+      window.dispatchEvent(new Event('firebase-ready'));
+    } else {
+      window._firebaseReady = false;
+    }
+  });
+
+  window._db           = db;
+  window._auth         = auth;
+  window._fsDoc        = doc;
+  window._fsSetDoc     = setDoc;
+  window._fsGetDoc     = getDoc;
+  window._fsGetDocs    = getDocs;
+  window._fsCollection = collection;
+  window._fsQuery      = query;
+  window._fsOrderBy    = orderBy;
+  window._fsWhere      = where;
+  window._fsLimit      = limit;
+</script>
+<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --text-xs: clamp(0.5rem, 0.45rem + 0.25vw, 0.65rem);
+  --text-sm: clamp(0.65rem, 0.6rem + 0.25vw, 0.75rem);
+  --text-base: clamp(0.85rem, 0.8rem + 0.25vw, 1rem);
+  --text-lg: clamp(1rem, 0.9rem + 0.5vw, 1.25rem);
+  --text-xl: clamp(1.1rem, 0.9rem + 1vw, 1.5rem);
+  --space-1: 0.25rem; --space-2: 0.5rem; --space-3: 0.75rem;
+  --space-4: 1rem; --space-5: 1.25rem; --space-6: 1.5rem;
+  --space-8: 2rem; --space-10: 2.5rem; --space-12: 3rem;
+  --radius-sm: 0.25rem; --radius-md: 0.375rem; --radius-lg: 0.5rem;
+  --radius-xl: 0.75rem; --radius-full: 9999px;
+  --transition-interactive: 180ms cubic-bezier(0.16, 1, 0.3, 1);
+  --color-bg: #0d0f14;
+  --color-surface: #131720;
+  --color-surface-2: #1a2030;
+  --color-surface-offset: #1e2638;
+  --color-border: rgba(255,255,255,0.08);
+  --color-divider: rgba(255,255,255,0.05);
+  --color-text: #e8eaf0;
+  --color-text-muted: #8b93a8;
+  --color-text-faint: #4a5168;
+  --color-text-inverse: #0d0f14;
+  --color-primary: #00c9a7;
+  --color-primary-hover: #00b894;
+  --color-primary-active: #009e7f;
+  --color-primary-glow: rgba(0,201,167,0.25);
+  --color-gold: #ffd700;
+  --color-gold-dim: rgba(255,215,0,0.15);
+  --color-hp: #e74c3c;
+  --color-hp-low: #c0392b;
+  --color-correct: #2ecc71;
+  --color-correct-bg: rgba(46,204,113,0.12);
+  --color-wrong: #e74c3c;
+  --color-wrong-bg: rgba(231,76,60,0.12);
+  --shadow-sm: 0 1px 3px rgba(0,0,0,0.4);
+  --shadow-md: 0 4px 16px rgba(0,0,0,0.5);
+  --shadow-lg: 0 8px 32px rgba(0,0,0,0.6);
+  --shadow-glow: 0 0 20px var(--color-primary-glow);
+  .field-input[rows] { min-height: 60px; }
+}
+html { -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; }
+body {
+  min-height: 100dvh; background: var(--color-bg); color: var(--color-text);
+  font-family: 'Inter', sans-serif; font-size: var(--text-base); line-height: 1.6; overflow-x: hidden;
+}
+body::before {
+  content: ''; position: fixed; inset: 0; z-index: 0; pointer-events: none;
+  background-image: linear-gradient(rgba(0,201,167,0.03) 1px, transparent 1px), linear-gradient(90deg, rgba(0,201,167,0.03) 1px, transparent 1px);
+  background-size: 32px 32px;
+}
+.screen {
+  position: fixed; inset: 0; z-index: 10; display: flex; flex-direction: column;
+  align-items: center; justify-content: center; padding: var(--space-4);
+  transition: opacity 0.3s cubic-bezier(0.16, 1, 0.3, 1); overflow-y: auto;
+}
+.screen.hidden { opacity: 0; pointer-events: none; }
+/* TITLE */
+#screen-title { text-align: center; gap: var(--space-6); }
+.game-logo { display: flex; flex-direction: column; align-items: center; gap: var(--space-3); }
+.logo-icon {
+  width: 80px; height: 80px;
+  background: linear-gradient(135deg, var(--color-primary), #0099ff);
+  border-radius: var(--radius-lg); display: flex; align-items: center; justify-content: center;
+  box-shadow: var(--shadow-glow), var(--shadow-md);
+  animation: float 3s ease-in-out infinite;
+}
+@keyframes float { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-8px)} }
+.logo-title { font-family: 'Press Start 2P',monospace; font-size: var(--text-xl); color: var(--color-primary); text-shadow: 0 0 20px var(--color-primary-glow), 2px 2px 0 rgba(0,0,0,.8); }
+.logo-subtitle { font-size: var(--text-sm); color: var(--color-text-muted); letter-spacing:.15em; text-transform:uppercase; }
+.hero-art { width:120px;height:120px; border-radius:var(--radius-lg); border:2px solid var(--color-border); object-fit:cover; image-rendering:pixelated; box-shadow:var(--shadow-md); }
+.title-buttons { display:flex; flex-direction:column; gap:var(--space-3); width:100%; max-width:300px; }
+.btn {
+  display:inline-flex; align-items:center; justify-content:center; gap:var(--space-2);
+  padding:var(--space-3) var(--space-5); border-radius:var(--radius-md);
+  font-family:'Press Start 2P',monospace; font-size:var(--text-xs); cursor:pointer; border:none;
+  transition: transform var(--transition-interactive), box-shadow var(--transition-interactive), background var(--transition-interactive);
+  min-height:48px;
+}
+.btn:active{transform:translateY(1px);}
+.btn-primary { background:var(--color-primary); color:var(--color-text-inverse); box-shadow:0 4px 0 var(--color-primary-active),var(--shadow-md); }
+.btn-primary:hover { background:var(--color-primary-hover); transform:translateY(-2px); box-shadow:0 6px 0 var(--color-primary-active),var(--shadow-lg); }
+.btn-primary:active { transform:translateY(2px); box-shadow:0 2px 0 var(--color-primary-active); }
+.btn-secondary { background:var(--color-surface-offset); color:var(--color-text); border:1px solid var(--color-border); box-shadow:0 4px 0 rgba(0,0,0,.4),var(--shadow-sm); }
+.btn-secondary:hover { background:var(--color-surface-2); transform:translateY(-2px); }
+.btn-ghost { background:transparent; color:var(--color-text-muted); border:1px solid var(--color-border); }
+.btn-ghost:hover { background:var(--color-surface); color:var(--color-text); }
+/* MAP */
+#screen-map { justify-content:flex-start; padding:var(--space-4); }
+.map-header {
+  width:100%; max-width:560px; display:flex; align-items:center; justify-content:space-between;
+  padding:var(--space-3) var(--space-4); background:var(--color-surface);
+  border-radius:var(--radius-lg); border:1px solid var(--color-border); margin-bottom:var(--space-5); box-shadow:var(--shadow-sm);
+}
+.player-info{display:flex;align-items:center;gap:var(--space-3);}
+.player-avatar{width:44px;height:44px;border-radius:var(--radius-md);object-fit:cover;image-rendering:pixelated;border:2px solid var(--color-primary);}
+.player-name{font-family:'Press Start 2P',monospace;font-size:var(--text-xs);color:var(--color-primary);}
+.player-stats{display:flex;flex-direction:column;gap:var(--space-1);}
+.stat-row{display:flex;align-items:center;gap:var(--space-2);}
+.stat-label{font-size:var(--text-xs);color:var(--color-text-muted);min-width:24px;}
+.hp-bar{width:80px;height:8px;background:var(--color-surface-offset);border-radius:var(--radius-full);overflow:hidden;border:1px solid var(--color-border);}
+.hp-fill{height:100%;background:linear-gradient(90deg,var(--color-hp-low),var(--color-hp));border-radius:var(--radius-full);transition:width .5s cubic-bezier(.16,1,.3,1);}
+.stat-value{font-family:'Press Start 2P',monospace;font-size:var(--text-xs);color:var(--color-gold);}
+.xp-bar{width:70px;height:6px;background:var(--color-surface-offset);border-radius:var(--radius-full);overflow:hidden;border:1px solid var(--color-border);}
+.xp-fill{height:100%;background:linear-gradient(90deg,#ffd700,#ffaa00);border-radius:var(--radius-full);transition:width .6s cubic-bezier(.16,1,.3,1);}
+.map-title{font-family:'Press Start 2P',monospace;font-size:var(--text-xs);color:var(--color-text-muted);text-align:center;margin-bottom:var(--space-3);}
+.level-grid{width:100%;max-width:560px;display:flex;flex-direction:column;gap:var(--space-3);padding-bottom:var(--space-8);}
+.level-card {
+  background:var(--color-surface); border:1px solid var(--color-border); border-radius:var(--radius-lg);
+  padding:var(--space-4); cursor:pointer;
+  transition: transform var(--transition-interactive), box-shadow var(--transition-interactive), border-color var(--transition-interactive);
+  display:flex; align-items:center; gap:var(--space-4); box-shadow:var(--shadow-sm); position:relative; overflow:hidden;
+}
+.level-card::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--color-primary);opacity:0;transition:opacity var(--transition-interactive);}
+.level-card:hover{transform:translateX(4px);box-shadow:var(--shadow-md);border-color:rgba(0,201,167,.3);}
+.level-card:hover::before{opacity:1;}
+.level-card:active{transform:translateX(2px);}
+.level-card.locked{opacity:.4;cursor:not-allowed;}
+.level-card.locked:hover{transform:none;box-shadow:var(--shadow-sm);border-color:var(--color-border);}
+.level-card.locked::before{display:none;}
+.level-card.completed{border-color:rgba(46,204,113,.25);}
+.level-card.completed::before{background:var(--color-correct);opacity:1;}
+.level-card.boss{border-color:rgba(255,215,0,.2);}
+.level-card.boss::before{background:var(--color-gold);}
+.level-card.boss:hover{border-color:rgba(255,215,0,.5);}
+.level-icon{width:52px;height:52px;flex-shrink:0;border-radius:var(--radius-md);background:var(--color-surface-2);display:flex;align-items:center;justify-content:center;font-size:1.5rem;border:1px solid var(--color-border);}
+.level-info{flex:1;min-width:0;}
+.level-name{font-family:'Press Start 2P',monospace;font-size:var(--text-xs);color:var(--color-text);margin-bottom:var(--space-1);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.level-desc{font-size:var(--text-xs);color:var(--color-text-muted);line-height:1.5;}
+.level-badge{flex-shrink:0;padding:var(--space-1) var(--space-2);border-radius:var(--radius-full);font-size:var(--text-xs);font-family:'Press Start 2P',monospace;background:var(--color-surface-offset);color:var(--color-text-muted);border:1px solid var(--color-border);}
+.level-card.completed .level-badge{background:rgba(46,204,113,.15);color:var(--color-correct);border-color:rgba(46,204,113,.3);}
+.level-card.boss .level-badge{background:var(--color-gold-dim);color:var(--color-gold);border-color:rgba(255,215,0,.3);}
+/* BATTLE */
+#screen-battle{justify-content:flex-start;padding:var(--space-4);gap:var(--space-4);max-width:600px;margin:0 auto;width:100%;}
+.battle-header{width:100%;display:flex;align-items:center;gap:var(--space-3);padding:var(--space-3) var(--space-4);background:var(--color-surface);border-radius:var(--radius-lg);border:1px solid var(--color-border);}
+.battle-back-btn{background:var(--color-surface-offset);border:1px solid var(--color-border);border-radius:var(--radius-md);color:var(--color-text-muted);padding:var(--space-2);cursor:pointer;display:flex;align-items:center;transition:color var(--transition-interactive),background var(--transition-interactive);min-width:36px;min-height:36px;justify-content:center;}
+.battle-back-btn:hover{background:var(--color-surface-2);color:var(--color-text);}
+.battle-level-name{font-family:'Press Start 2P',monospace;font-size:var(--text-xs);color:var(--color-primary);flex:1;}
+.question-counter{font-family:'Press Start 2P',monospace;font-size:var(--text-xs);color:var(--color-text-muted);}
+.battle-arena{width:100%;background:var(--color-surface);border-radius:var(--radius-lg);border:1px solid var(--color-border);padding:var(--space-4);display:flex;align-items:center;justify-content:space-between;gap:var(--space-4);min-height:140px;position:relative;}
+.combatant{display:flex;flex-direction:column;align-items:center;gap:var(--space-2);flex:1;}
+.combatant-art{width:80px;height:80px;border-radius:var(--radius-md);object-fit:cover;image-rendering:pixelated;border:2px solid var(--color-border);}
+.combatant-art.shake{animation:shake .4s cubic-bezier(.16,1,.3,1);}
+.combatant-art.attack{animation:attack-anim .3s cubic-bezier(.16,1,.3,1);}
+.combatant-art.enemy-shake{animation:enemy-shake .4s cubic-bezier(.16,1,.3,1);}
+@keyframes shake{0%,100%{transform:translateX(0)}20%{transform:translateX(-8px)}40%{transform:translateX(8px)}60%{transform:translateX(-5px)}80%{transform:translateX(5px)}}
+@keyframes attack-anim{0%{transform:translateX(0) scale(1)}50%{transform:translateX(20px) scale(1.1)}100%{transform:translateX(0) scale(1)}}
+@keyframes enemy-shake{0%,100%{transform:translateX(0)}20%{transform:translateX(6px) rotate(3deg)}40%{transform:translateX(-6px) rotate(-3deg)}60%{transform:translateX(4px)}80%{transform:translateX(-4px)}}
+.combatant-name{font-family:'Press Start 2P',monospace;font-size:var(--text-xs);color:var(--color-text);text-align:center;}
+.combatant-hp{width:100%;}
+.combatant-hp-bar{width:100%;height:10px;background:var(--color-surface-offset);border-radius:var(--radius-full);overflow:hidden;border:1px solid var(--color-border);}
+.combatant-hp-fill{height:100%;border-radius:var(--radius-full);transition:width .6s cubic-bezier(.16,1,.3,1);}
+.hero-hp-fill{background:linear-gradient(90deg,var(--color-hp-low),var(--color-hp));}
+.enemy-hp-fill{background:linear-gradient(90deg,#8b0000,var(--color-wrong));}
+.combatant-hp-text{font-family:'Press Start 2P',monospace;font-size:var(--text-xs);color:var(--color-text-muted);text-align:center;margin-top:var(--space-1);}
+.vs-badge{font-family:'Press Start 2P',monospace;font-size:var(--text-sm);color:var(--color-gold);text-shadow:0 0 10px rgba(255,215,0,.5);flex-shrink:0;}
+.damage-float{position:absolute;font-family:'Press Start 2P',monospace;font-size:var(--text-base);font-weight:700;pointer-events:none;animation:float-up 1.2s cubic-bezier(.16,1,.3,1) forwards;z-index:100;}
+@keyframes float-up{0%{opacity:1;transform:translateY(0) scale(1)}70%{opacity:1}100%{opacity:0;transform:translateY(-60px) scale(.7)}}
+.question-panel{width:100%;background:var(--color-surface);border:1px solid var(--color-border);border-radius:var(--radius-lg);padding:var(--space-5);box-shadow:var(--shadow-md);}
+.question-text{font-size:var(--text-base);color:var(--color-text);line-height:1.6;margin-bottom:var(--space-5);min-height:3em;}
+.answers-grid{display:grid;grid-template-columns:1fr 1fr;gap:var(--space-3);}
+.answer-btn{background:var(--color-surface-offset);border:2px solid var(--color-border);border-radius:var(--radius-md);color:var(--color-text);padding:var(--space-3);font-family:'Inter',sans-serif;font-size:var(--text-sm);text-align:left;cursor:pointer;transition:border-color var(--transition-interactive),background var(--transition-interactive),transform var(--transition-interactive);line-height:1.4;min-height:60px;display:flex;align-items:center;}
+.answer-btn:hover:not(:disabled){border-color:var(--color-primary);background:var(--color-surface-2);transform:translateY(-1px);}
+.answer-btn:active:not(:disabled){transform:translateY(0);}
+.answer-btn:disabled{cursor:not-allowed;}
+.answer-btn.correct{border-color:var(--color-correct);background:var(--color-correct-bg);color:var(--color-correct);}
+.answer-btn.wrong{border-color:var(--color-wrong);background:var(--color-wrong-bg);color:var(--color-wrong);}
+.answer-btn.dimmed{opacity:.35;}
+.feedback-bar{margin-top:var(--space-4);padding:var(--space-3) var(--space-4);border-radius:var(--radius-md);font-size:var(--text-sm);font-weight:600;display:none;align-items:center;gap:var(--space-2);}
+.feedback-bar.show{display:flex;}
+.feedback-bar.correct{background:var(--color-correct-bg);color:var(--color-correct);border:1px solid rgba(46,204,113,.3);}
+.feedback-bar.wrong{background:var(--color-wrong-bg);color:var(--color-wrong);border:1px solid rgba(231,76,60,.3);}
+.next-btn-wrap{margin-top:var(--space-4);display:flex;justify-content:flex-end;}
+/* RESULT */
+#screen-result{text-align:center;gap:var(--space-5);}
+.result-icon{width:100px;height:100px;border-radius:var(--radius-xl);object-fit:cover;image-rendering:pixelated;border:3px solid var(--color-primary);box-shadow:var(--shadow-glow);}
+.result-title{font-family:'Press Start 2P',monospace;font-size:var(--text-xl);color:var(--color-primary);text-shadow:0 0 20px var(--color-primary-glow);}
+.result-title.defeat{color:var(--color-wrong);text-shadow:0 0 20px rgba(231,76,60,.4);}
+.result-score{font-family:'Press Start 2P',monospace;font-size:var(--text-sm);color:var(--color-gold);}
+.result-stats{display:flex;gap:var(--space-4);justify-content:center;flex-wrap:wrap;}
+.result-stat{text-align:center;padding:var(--space-3) var(--space-5);background:var(--color-surface);border:1px solid var(--color-border);border-radius:var(--radius-lg);}
+.result-stat-value{font-family:'Press Start 2P',monospace;font-size:var(--text-lg);color:var(--color-primary);display:block;}
+.result-stat-label{font-size:var(--text-xs);color:var(--color-text-muted);}
+.stars{font-size:1.5rem;letter-spacing:.1em;}
+.result-btns{display:flex;flex-direction:column;gap:var(--space-3);width:100%;max-width:280px;}
+/* EDITOR */
+#screen-editor{justify-content:flex-start;padding:var(--space-4);gap:var(--space-4);}
+.editor-header{width:100%;max-width:640px;display:flex;align-items:center;gap:var(--space-3);padding:var(--space-3) var(--space-4);background:var(--color-surface);border-radius:var(--radius-lg);border:1px solid var(--color-border);}
+.editor-title{font-family:'Press Start 2P',monospace;font-size:var(--text-xs);color:var(--color-primary);flex:1;}
+.editor-body{width:100%;max-width:640px;display:flex;flex-direction:column;gap:var(--space-4);padding-bottom:var(--space-12);}
+.editor-section{background:var(--color-surface);border:1px solid var(--color-border);border-radius:var(--radius-lg);overflow:hidden;}
+.editor-section-header{padding:var(--space-3) var(--space-4);background:var(--color-surface-2);border-bottom:1px solid var(--color-border);font-family:'Press Start 2P',monospace;font-size:var(--text-xs);color:var(--color-text-muted);display:flex;align-items:center;gap:var(--space-2);}
+.level-editor-item{padding:var(--space-4);border-bottom:1px solid var(--color-divider);display:flex;flex-direction:column;gap:var(--space-3);}
+.level-editor-item:last-child{border-bottom:none;}
+.level-editor-row{display:flex;align-items:center;gap:var(--space-3);flex-wrap:wrap;}
+.field-label{font-size:var(--text-xs);color:var(--color-text-muted);min-width:60px;}
+.field-input{flex:1;background:var(--color-surface-offset);border:1px solid var(--color-border);border-radius:var(--radius-sm);color:var(--color-text);padding:var(--space-2) var(--space-3);font-family:'Inter',sans-serif;font-size:var(--text-sm);transition:border-color var(--transition-interactive),box-shadow var(--transition-interactive);}
+.field-input:focus{outline:none;border-color:var(--color-primary);box-shadow:0 0 0 3px var(--color-primary-glow);}
+.question-editor-item{padding:var(--space-4);border-bottom:1px solid var(--color-divider);display:flex;flex-direction:column;gap:var(--space-3);}
+.question-editor-item:last-child{border-bottom:none;}
+.question-num{font-family:'Press Start 2P',monospace;font-size:var(--text-xs);color:var(--color-primary);}
+.answers-editor{display:grid;grid-template-columns:1fr 1fr;gap:var(--space-2);}
+.answer-editor-wrap{display:flex;flex-direction:column;gap:var(--space-1);}
+.answer-editor-label{font-size:var(--text-xs);color:var(--color-text-muted);display:flex;align-items:center;gap:var(--space-1);}
+.correct-dot{width:8px;height:8px;border-radius:var(--radius-full);background:var(--color-correct);display:inline-block;}
+.correct-select{background:var(--color-surface-offset);border:1px solid var(--color-border);border-radius:var(--radius-sm);color:var(--color-text);padding:var(--space-2) var(--space-3);font-family:'Inter',sans-serif;font-size:var(--text-sm);cursor:pointer;transition:border-color var(--transition-interactive);width:100%;}
+.correct-select:focus{outline:none;border-color:var(--color-primary);}
+.add-btn{display:flex;align-items:center;gap:var(--space-2);padding:var(--space-3) var(--space-4);background:transparent;border:1px dashed var(--color-border);border-radius:var(--radius-md);color:var(--color-text-muted);font-family:'Inter',sans-serif;font-size:var(--text-sm);cursor:pointer;width:100%;transition:border-color var(--transition-interactive),color var(--transition-interactive),background var(--transition-interactive);}
+.add-btn:hover{border-color:var(--color-primary);color:var(--color-primary);background:rgba(0,201,167,.05);}
+.del-btn{background:transparent;border:1px solid var(--color-border);border-radius:var(--radius-sm);color:var(--color-wrong);padding:var(--space-1) var(--space-2);cursor:pointer;font-size:var(--text-xs);transition:background var(--transition-interactive),border-color var(--transition-interactive);display:flex;align-items:center;}
+.del-btn:hover{background:rgba(231,76,60,.1);border-color:var(--color-wrong);}
+.add-level-btn{display:flex;align-items:center;justify-content:center;gap:var(--space-2);padding:var(--space-4);background:transparent;border:2px dashed var(--color-border);border-radius:var(--radius-lg);color:var(--color-text-muted);font-family:'Press Start 2P',monospace;font-size:var(--text-xs);cursor:pointer;width:100%;max-width:640px;transition:border-color var(--transition-interactive),color var(--transition-interactive),background var(--transition-interactive);}
+.add-level-btn:hover{border-color:var(--color-primary);color:var(--color-primary);background:rgba(0,201,167,.05);}
+.toast{position:fixed;bottom:var(--space-6);left:50%;transform:translateX(-50%);background:var(--color-surface-2);border:1px solid var(--color-primary);border-radius:var(--radius-lg);padding:var(--space-3) var(--space-5);font-family:'Press Start 2P',monospace;font-size:var(--text-xs);color:var(--color-primary);z-index:200;box-shadow:var(--shadow-lg);opacity:0;pointer-events:none;white-space:nowrap;transition:opacity .3s,transform .3s;}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
+::-webkit-scrollbar{width:4px;}::-webkit-scrollbar-track{background:var(--color-bg);}::-webkit-scrollbar-thumb{background:var(--color-surface-offset);border-radius:var(--radius-full);}::-webkit-scrollbar-thumb:hover{background:var(--color-primary);}
+@media(max-width:480px){.answers-grid{grid-template-columns:1fr;}.answers-editor{grid-template-columns:1fr;}.result-stats{flex-direction:column;align-items:center;}}
+
+/* ============ CUTSCENE ============ */
+#screen-cutscene {
+  background: #000;
+  padding: 0;
+  justify-content: flex-end;
+  overflow: hidden;
+}
+.cutscene-image-wrap {
+  position: absolute; inset: 0;
+  display: flex; align-items: center; justify-content: center;
+}
+.cutscene-img {
+  width: 100%; height: 100%;
+  object-fit: cover;
+  transition: opacity 0.8s ease;
+}
+.cutscene-vignette {
+  position: absolute; inset: 0;
+  background: radial-gradient(ellipse at center, transparent 40%, rgba(0,0,0,0.7) 100%);
+  pointer-events: none;
+}
+.cutscene-slide-num {
+  position: absolute; top: var(--space-4); right: var(--space-4);
+  font-family: 'Press Start 2P', monospace;
+  font-size: var(--text-xs);
+  color: rgba(255,255,255,0.4);
+  z-index: 20;
+}
+.cutscene-dialog {
+  position: relative; z-index: 20;
+  width: 100%; max-width: 640px;
+  margin: 0 auto var(--space-6);
+  padding: var(--space-4) var(--space-5);
+  background: rgba(0,0,0,0.82);
+  border: 2px solid var(--color-primary);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 0 24px rgba(0,201,167,0.3);
+  backdrop-filter: blur(4px);
+}
+.cutscene-speaker {
+  font-family: 'Press Start 2P', monospace;
+  font-size: var(--text-xs);
+  color: var(--color-primary);
+  margin-bottom: var(--space-2);
+  display: flex; align-items: center; gap: var(--space-2);
+}
+.cutscene-speaker::before {
+  content: '';
+  display: inline-block;
+  width: 8px; height: 8px;
+  background: var(--color-primary);
+  border-radius: var(--radius-full);
+  animation: blink-dot 1s ease-in-out infinite;
+}
+@keyframes blink-dot { 0%,100%{opacity:1} 50%{opacity:.3} }
+.cutscene-text {
+  font-size: var(--text-sm);
+  color: #e8eaf0;
+  line-height: 1.7;
+  min-height: 2.5em;
+}
+.cutscene-text .cursor {
+  display: inline-block;
+  width: 2px; height: 1.1em;
+  background: var(--color-primary);
+  margin-left: 2px;
+  vertical-align: text-bottom;
+  animation: blink-cur 0.6s step-end infinite;
+}
+@keyframes blink-cur { 0%,100%{opacity:1} 50%{opacity:0} }
+.cutscene-hint {
+  margin-top: var(--space-3);
+  font-size: var(--text-xs);
+  color: var(--color-text-faint);
+  text-align: right;
+  font-family: 'Press Start 2P', monospace;
+  animation: pulse-hint 1.5s ease-in-out infinite;
+}
+@keyframes pulse-hint { 0%,100%{opacity:.4} 50%{opacity:1} }
+.cutscene-progress {
+  position: absolute; bottom: 0; left: 0; right: 0;
+  height: 3px;
+  background: rgba(255,255,255,0.1);
+  z-index: 30;
+}
+.cutscene-progress-fill {
+  height: 100%;
+  background: var(--color-primary);
+  transition: width 0.4s ease;
+  box-shadow: 0 0 8px var(--color-primary-glow);
+}
+.cutscene-skip-btn {
+  position: absolute; top: var(--space-4); left: var(--space-4);
+  z-index: 30;
+  background: rgba(0,0,0,0.6);
+  border: 1px solid rgba(255,255,255,0.2);
+  border-radius: var(--radius-full);
+  color: rgba(255,255,255,0.5);
+  font-family: 'Press Start 2P', monospace;
+  font-size: var(--text-xs);
+  padding: var(--space-2) var(--space-4);
+  cursor: pointer;
+  transition: color var(--transition-interactive), border-color var(--transition-interactive), background var(--transition-interactive);
+}
+.cutscene-skip-btn:hover { color: #fff; border-color: rgba(255,255,255,0.5); background: rgba(0,0,0,0.8); }
+/* ═══ COMBO BANNER ═══ */
+.combo-banner { display:flex;align-items:center;justify-content:center;gap:var(--space-2);padding:var(--space-2) var(--space-4);font-family:'Press Start 2P',monospace;font-size:var(--text-xs);min-height:36px;transition:all var(--transition-interactive); }
+.combo-banner.hidden { opacity:0;pointer-events:none; }
+.combo-badge { display:inline-flex;align-items:center;padding:2px var(--space-2);border-radius:var(--radius-full);font-size:var(--text-xs);font-weight:800;text-transform:uppercase; }
+.combo-0{color:var(--color-primary)}.combo-1{color:#2ecc71}.combo-2{color:#f0a832}.combo-3{color:#e05c7a}.combo-4{color:#c67bff}
+.cbadge-0{background:rgba(0,201,167,.2);color:var(--color-primary)}.cbadge-1{background:rgba(46,204,113,.2);color:#2ecc71}.cbadge-2{background:rgba(240,168,50,.2);color:#f0a832}.cbadge-3{background:rgba(224,92,122,.2);color:#e05c7a}.cbadge-4{background:rgba(198,123,255,.2);color:#c67bff}
+@keyframes comboPulse{0%{transform:scale(1)}40%{transform:scale(1.08)}100%{transform:scale(1)}}
+.combo-banner.pulse{animation:comboPulse .35s ease;}
+/* ═══ EXPLANATION PANEL ═══ */
+.explanation-panel{background:var(--color-wrong-bg);border:1px solid var(--color-wrong);border-radius:var(--radius-lg);padding:var(--space-4) var(--space-5);margin-top:var(--space-3);width:100%;display:none;}
+.explanation-panel.visible{display:block;}
+.explanation-header{font-family:'Press Start 2P',monospace;font-size:var(--text-xs);color:var(--color-wrong);margin-bottom:var(--space-2);}
+.explanation-text{font-size:var(--text-sm);color:var(--color-text);line-height:1.6;}
+.explanation-correct{margin-top:var(--space-2);padding-top:var(--space-2);border-top:1px solid rgba(255,255,255,.1);font-size:var(--text-xs);color:var(--color-text-muted);}
+.explanation-correct strong{color:var(--color-correct);}
+/* ═══════════ TIMER ═══════════ */
+.timer-wrap {
+  width: 100%; max-width: 600px;
+  display: flex; align-items: center; gap: var(--space-2);
+}
+.timer-bar-track {
+  flex: 1; height: 8px; background: var(--color-surface-offset);
+  border-radius: var(--radius-full); overflow: hidden;
+  border: 1px solid var(--color-border);
+}
+.timer-bar-fill {
+  height: 100%; border-radius: var(--radius-full);
+  background: var(--color-correct);
+  transition: width 1s linear, background 0.5s ease;
+}
+.timer-num {
+  font-family: 'Press Start 2P', monospace;
+  font-size: var(--text-xs); color: var(--color-text-muted);
+  min-width: 28px; text-align: right;
+}
+.timer-num.warning { color: #f0a832; }
+.timer-num.danger  { color: var(--color-wrong); }
+@keyframes timerPulse {
+  0%,100% { transform: scale(1); }
+  50%      { transform: scale(1.15); }
+}
+.timer-num.danger { animation: timerPulse 0.6s ease-in-out infinite; }
+/* ═══════════ SCREEN-START ═══════════ */
+#screen-start { gap: var(--space-5); padding: var(--space-8) var(--space-4); }
+.save-card {
+  width: 100%; max-width: 400px;
+  background: var(--color-surface); border: 2px solid var(--color-primary);
+  border-radius: var(--radius-lg); padding: var(--space-5);
+  display: flex; flex-direction: column; gap: var(--space-3);
+  box-shadow: 0 0 20px rgba(0,201,167,0.15);
+}
+.save-card-name {
+  font-family: 'Press Start 2P', monospace;
+  font-size: var(--text-xs); color: var(--color-primary);
+}
+.save-card-stats { font-size: var(--text-sm); color: var(--color-text-muted); line-height: 1.8; }
+.save-card-date  { font-size: var(--text-xs); color: var(--color-text-faint); }
+.name-form { width: 100%; max-width: 400px; display: flex; flex-direction: column; gap: var(--space-4); }
+.name-form-title {
+  font-family: 'Press Start 2P', monospace;
+  font-size: var(--text-xs); color: var(--color-text-muted); text-align: center;
+}
+/* ═══════════ XP REWARD BADGE ═══════════ */
+.xp-reward {
+  font-family: 'Press Start 2P', monospace;
+  font-size: var(--text-xs); text-align: center; padding: var(--space-2);
+}
+.xp-reward.no-xp { color: var(--color-text-muted); }
+.xp-reward.bonus-xp { color: var(--color-gold, #f0a832); }
+.xp-reward.full-xp { color: var(--color-correct); }
+/* ═══════════ PASSWORD MODAL ═══════════ */
+.pwd-overlay {
+  position: fixed; inset: 0; z-index: 999;
+  background: rgba(0,0,0,0.75); backdrop-filter: blur(4px);
+  display: flex; align-items: center; justify-content: center;
+  padding: var(--space-4);
+  opacity: 0; pointer-events: none;
+  transition: opacity 0.2s ease;
+}
+.pwd-overlay.visible {
+  opacity: 1; pointer-events: all;
+}
+.pwd-modal {
+  background: var(--color-surface);
+  border: 2px solid var(--color-primary);
+  border-radius: var(--radius-xl);
+  padding: var(--space-6); width: 100%; max-width: 340px;
+  display: flex; flex-direction: column; gap: var(--space-4);
+  box-shadow: 0 0 32px rgba(0,201,167,0.2);
+  transform: scale(0.95);
+  transition: transform 0.2s ease;
+}
+.pwd-overlay.visible .pwd-modal { transform: scale(1); }
+.pwd-modal-title {
+  font-family: 'Press Start 2P', monospace;
+  font-size: var(--text-xs); color: var(--color-primary);
+  text-align: center;
+}
+.pwd-modal-sub {
+  font-size: var(--text-sm); color: var(--color-text-muted);
+  text-align: center;
+}
+.pwd-hint {
+  font-size: var(--text-xs); color: var(--color-text-faint);
+  text-align: center;
+}
+.pwd-error {
+  font-size: var(--text-xs); color: var(--color-wrong);
+  text-align: center; min-height: 16px;
+}
+@keyframes modalShake {
+  0%,100% { transform: scale(1) translateX(0); }
+  20%      { transform: scale(1) translateX(-8px); }
+  40%      { transform: scale(1) translateX(8px); }
+  60%      { d: scale(1) translateX(-5px); }
+  80%      { transform: scale(1) translateX(5px); }
+}
+.pwd-modal.shake { animation: modalShake 0.4s ease; }
+/* ═══════════ LEADERBOARD ═══════════ */
+#screen-leaders {
+  justify-content: flex-start;
+  padding: var(--space-4);
+  gap: var(--space-3);
+}
+.leader-row {
+  display: flex; align-items: center; gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  width: 100%; max-width: 500px;
+}
+.leader-row.is-me {
+  border-color: var(--color-primary);
+  background: rgba(0,201,167,0.06);
+}
+.leader-rank {
+  font-family: 'Press Start 2P', monospace;
+  font-size: var(--text-xs); min-width: 32px;
+}
+.leader-name {
+  flex: 1; font-size: var(--text-sm);
+  color: var(--color-text);
+}
+.leader-stars {
+  font-size: var(--text-xs);
+  color: var(--color-gold); min-width: 54px;
+}
+.leader-xp {
+  font-family: 'Press Start 2P', monospace;
+  font-size: var(--text-xs);
+  color: var(--color-primary);
+  min-width: 64px; text-align: right;
+}
+</style>
+</head>
+<body>
+
+<!-- TITLE -->
+<div class="screen" id="screen-title">
+  <div class="game-logo">
+    <div class="logo-icon">
+      <svg width="44" height="44" viewBox="0 0 44 44" fill="none" aria-label="ChemQuest logo">
+        <path d="M18 6 L18 20 L8 36 L36 36 L26 20 L26 6 Z" stroke="#fff" stroke-width="2.5" stroke-linejoin="round" fill="none"/>
+        <circle cx="22" cy="28" r="4" fill="#00c9a7" opacity="0.9"/>
+        <circle cx="15" cy="32" r="2.5" fill="#0099ff" opacity="0.7"/>
+        <circle cx="29" cy="31" r="2" fill="#ffd700" opacity="0.8"/>
+        <line x1="18" y1="6" x2="26" y2="6" stroke="#fff" stroke-width="2" stroke-linecap="round"/>
+      </svg>
+    </div>
+    <div>
+      <div class="logo-title">ChemQuest</div>
+      <div class="logo-subtitle">Химический Герой</div>
+    </div>
+  </div>
+  <img src="https://user-gen-media-assets.s3.amazonaws.com/gemini_images/3389c4f8-d2d6-41cc-bc73-94d853e952e4.png" alt="Герой химик" class="hero-art" width="120" height="120" loading="lazy">
+  <div class="title-buttons">
+    <button class="btn btn-primary" onclick="startGame()">&#9654; НАЧАТЬ ИГРУ</button>
+    <button class="btn btn-secondary" onclick="showScreen('map')">&#128506; КАРТА УРОВНЕЙ</button>
+    <button class="btn btn-ghost" id="music-toggle-btn" onclick="toggleMusic()" style="font-size:var(--text-xs);">&#127925; МУЗЫКА: ВКЛ</button>
+    <button class="btn btn-secondary" onclick="showScreen('leaders');loadLeaderboard();">🏆 ЛИДЕРЫ</button>
+  </div>
+</div>
+
+
+<!-- CUTSCENE -->
+<div class="screen hidden" id="screen-cutscene" onclick="cutsceneClick()">
+  <div class="cutscene-image-wrap">
+    <img id="cutscene-img" src="" alt="Сюжет" class="cutscene-img" width="800" height="500" loading="eager">
+    <div class="cutscene-vignette"></div>
+  </div>
+  <button class="cutscene-skip-btn" onclick="event.stopPropagation();skipCutscene()">ПРОПУСТИТЬ ▶▶</button>
+  <div class="cutscene-slide-num" id="cutscene-slide-num">1 / 4</div>
+  <div class="cutscene-dialog">
+    <div class="cutscene-speaker" id="cutscene-speaker">РАССКАЗЧИК</div>
+    <div class="cutscene-text" id="cutscene-text"><span id="cutscene-typed"></span><span class="cursor"></span></div>
+    <div class="cutscene-hint" id="cutscene-hint">Нажми чтобы продолжить...</div>
+  </div>
+  <div class="cutscene-progress">
+    <div class="cutscene-progress-fill" id="cutscene-progress-fill" style="width:25%"></div>
+  </div>
+</div>
+<!-- START / SAVE SCREEN -->
+<div class="screen hidden" id="screen-start">
+
+  <div class="game-logo" style="pointer-events:none;">
+    <div class="logo-icon">
+      <svg width="44" height="44" viewBox="0 0 44 44" fill="none">
+        <path d="M18 6 L18 20 L8 36 L36 36 L26 20 L26 6 Z" stroke="#fff" stroke-width="2.5" stroke-linejoin="round" fill="none"/>
+        <circle cx="22" cy="28" r="4" fill="#00c9a7" opacity="0.9"/>
+        <circle cx="15" cy="32" r="2.5" fill="#0099ff" opacity="0.7"/>
+        <circle cx="29" cy="31" r="2" fill="#ffd700" opacity="0.8"/>
+        <line x1="18" y1="6" x2="26" y2="6" stroke="#fff" stroke-width="2" stroke-linecap="round"/>
+      </svg>
+    </div>
+    <div>
+      <div class="logo-title">ChemQuest</div>
+      <div class="logo-subtitle">Химический Герой</div>
+    </div>
+  </div>
+
+  <!-- Блок: кнопка Google -->
+  <div id="block-google" style="display:flex;flex-direction:column;align-items:center;gap:var(--space-4);width:100%;max-width:400px;">
+    <div class="name-form-title">ВОЙДИ ЧТОБЫ ИГРАТЬ</div>
+    <button class="btn btn-primary" id="google-signin-btn"
+      onclick="handleGoogleSignIn()"
+      style="width:100%;display:flex;align-items:center;justify-content:center;gap:var(--space-3);">
+      <svg width="18" height="18" viewBox="0 0 24 24">
+        <path fill="#fff" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+        <path fill="#fff" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+        <path fill="#fff" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z"/>
+        <path fill="#fff" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+      </svg>
+      Войти через Google
+    </button>
+    <div style="font-size:var(--text-xs);color:var(--color-text-faint);text-align:center;max-width:280px;">
+      Твой прогресс будет сохранён и привязан к аккаунту
+    </div>
+  </div>
+
+  <!-- Блок: ввод никнейма (после Google входа) -->
+  <div id="block-newgame" style="display:none;flex-direction:column;align-items:center;gap:var(--space-4);width:100%;">
+    <div class="name-form">
+      <div class="name-form-title">ПРИДУМАЙ ИГРОВОЕ ИМЯ</div>
+      <div style="font-size:var(--text-xs);color:var(--color-text-faint);text-align:center;">
+        Изменить потом будет нельзя
+      </div>
+      <input class="field-input" id="name-input" type="text"
+        placeholder="Игровое имя..." maxlength="20"
+        style="width:100%;text-align:center;font-size:var(--text-base);"
+        onkeydown="if(event.key==='Enter')startNewGame()">
+      <button class="btn btn-primary" onclick="startNewGame()">⚔️ НАЧАТЬ ИГРУ</button>
+    </div>
+  </div>
+
+</div>
+</div>
+<!-- MAP -->
+<div class="screen hidden" id="screen-map">
+  <div class="map-header">
+    <img src="https://user-gen-media-assets.s3.amazonaws.com/gemini_images/3389c4f8-d2d6-41cc-bc73-94d853e952e4.png" alt="Герой" class="player-avatar" width="44" height="44" loading="lazy">
+    <div class="player-info">
+      <div>
+        <div class="player-name" id="player-name-map">ХИМИК</div>
+        <div style="font-size:var(--text-xs);color:var(--color-text-muted);margin-top:2px">Ур. <span id="player-level">1</span></div>
+      </div>
+    </div>
+    <div style="flex:1"></div>
+    <div class="player-stats">
+      <div class="stat-row">
+        <span class="stat-label">HP</span>
+        <div class="hp-bar"><div class="hp-fill" id="map-hp-fill" style="width:100%"></div></div>
+        <span class="stat-value" id="map-hp-text">100</span>
+      </div>
+      <div class="stat-row">
+        <span class="stat-label">XP</span>
+        <div class="xp-bar"><div class="xp-fill" id="map-xp-fill" style="width:0%"></div></div>
+        <span class="stat-value" id="map-xp-text">0</span>
+      </div>
+    </div>
+    <button class="btn btn-ghost" onclick="showScreen('title')" style="margin-left:var(--space-2);font-size:var(--text-xs);padding:var(--space-2) var(--space-3);min-height:36px;">&#8617;</button>
+  </div>
+  <div class="map-title">&#8212; ВЫБЕРИ УРОВЕНЬ &#8212;</div>
+  <div class="level-grid" id="level-grid"></div>
+</div>
+
+<!-- BATTLE -->
+<div class="screen hidden" id="screen-battle">
+  <div class="combo-banner hidden" id="combo-banner">
+  <span class="combo-badge" id="combo-badge">×1</span>
+  <span id="combo-text">КОМБО!</span>
+  <span id="combo-dmg-info"></span>
+</div>
+  <div class="battle-header" style="width:100%;max-width:600px;">
+    <button class="battle-back-btn" onclick="showScreen('map')" aria-label="Назад">&#8592;</button>
+    <span class="battle-level-name" id="battle-level-name">Уровень 1</span>
+    <span class="question-counter" id="question-counter">1 / 5</span>
+  </div>
+  <div class="battle-arena" id="battle-arena" style="width:100%;max-width:600px;">
+    <div class="combatant">
+      <img src="https://user-gen-media-assets.s3.amazonaws.com/gemini_images/3389c4f8-d2d6-41cc-bc73-94d853e952e4.png" alt="Герой" class="combatant-art" id="hero-art" width="80" height="80" loading="lazy">
+      <span class="combatant-name">ХИМИК</span>
+      <div class="combatant-hp">
+        <div class="combatant-hp-bar"><div class="combatant-hp-fill hero-hp-fill" id="hero-hp-bar" style="width:100%"></div></div>
+        <div class="combatant-hp-text" id="hero-hp-text">100 / 100</div>
+      </div>
+    </div>
+    <div class="vs-badge">VS</div>
+    <div class="combatant">
+      <img src="https://user-gen-media-assets.s3.amazonaws.com/gemini_images/3491b1e8-a680-426a-a636-b111f06b7a94.png" alt="Враг" class="combatant-art" id="enemy-art" width="80" height="80" loading="lazy">
+      <span class="combatant-name" id="enemy-name">ВРАГ</span>
+      <div class="combatant-hp">
+        <div class="combatant-hp-bar"><div class="combatant-hp-fill enemy-hp-fill" id="enemy-hp-bar" style="width:100%"></div></div>
+        <div class="combatant-hp-text" id="enemy-hp-text">80 / 80</div>
+      </div>
+    </div>
+  </div>
+  <!-- TIMER -->
+<div class="timer-wrap" id="timer-wrap" style="display:none;">
+  <div class="timer-bar-track">
+    <div class="timer-bar-fill" id="timer-bar-fill"></div>
+  </div>
+  <span class="timer-num" id="timer-num">20</span>
+</div>
+  <div class="question-panel" style="width:100%;max-width:600px;">
+    <div class="question-text" id="question-text">Загрузка...</div>
+    <div class="answers-grid" id="answers-grid"></div>
+    <div class="feedback-bar" id="feedback-bar"><span id="feedback-text"></span></div>
+    <div class="explanation-panel" id="explanation-panel">
+  <div class="explanation-header">⚠ Пояснение</div>
+  <div class="explanation-text" id="explanation-text">—</div>
+  <div class="explanation-correct" id="explanation-correct"></div>
+</div>
+    <div class="next-btn-wrap" id="next-btn-wrap" style="display:none;">
+      <button class="btn btn-primary" onclick="nextQuestion()" style="min-height:40px;font-size:var(--text-xs);">ДАЛЕЕ &#9654;</button>
+    </div>
+  </div>
+</div>
+
+<!-- RESULT -->
+<div class="screen hidden" id="screen-result">
+  <img id="result-img" src="" alt="Результат" class="result-icon" width="100" height="100" loading="lazy">
+  <div class="result-title" id="result-title">ПОБЕДА!</div>
+  <div class="stars" id="result-stars">&#11088;&#11088;&#11088;</div>
+  <div class="result-score" id="result-score">+150 XP</div>
+  <div class="result-stats">
+    <div class="result-stat">
+  <span class="result-stat-value" id="res-combo">×0</span>
+  <span class="result-stat-label">Макс комбо</span>
+</div>
+    <div class="result-stat"><span class="result-stat-value" id="res-correct">0</span><span class="result-stat-label">Верно</span></div>
+    <div class="result-stat"><span class="result-stat-value" id="res-wrong">0</span><span class="result-stat-label">Ошибок</span></div>
+    <div class="result-stat"><span class="result-stat-value" id="res-xp">0</span><span class="result-stat-label">XP всего</span></div>
+  </div>
+  <div class="result-btns">
+    <button class="btn btn-primary" id="result-next-btn" onclick="goToNextLevel()">СЛЕД. УРОВЕНЬ &#9654;</button>
+    <button class="btn btn-secondary" onclick="replayLevel()">&#8635; ПОВТОРИТЬ</button>
+    <button class="btn btn-ghost" onclick="showScreen('map')">&#128506; КАРТА</button>
+  </div>
+</div>
+
+<!-- EDITOR -->
+<div class="screen hidden" id="screen-editor">
+  <div class="editor-header" style="max-width:640px;">
+    <button class="battle-back-btn" onclick="showScreen('title')" aria-label="Назад">&#8592;</button>
+    <span class="editor-title">РЕДАКТОР УРОВНЕЙ</span>
+    <button class="btn btn-primary" onclick="saveEditorData()" style="font-size:var(--text-xs);padding:var(--space-2) var(--space-4);min-height:36px;">&#128190; СОХРАНИТЬ</button>
+  </div>
+  <div class="editor-body" id="editor-body"></div>
+  <button class="add-level-btn" id="add-level-btn" onclick="addLevel()" style="max-width:640px;">+ ДОБАВИТЬ УРОВЕНЬ</button>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ============ GAME STATE ============
+let gameData = {
+  playerHP:100, playerMaxHP:100, playerXP:0, playerLevel:1,
+  currentLevelIndex:0, currentQuestionIndex:0,
+  battleCorrect:0, battleWrong:0, enemyHP:0, enemyMaxHP:0, battleXP:0,
+  comboCount:0, maxCombo:0   // ← добавить
+};
+
+let levels = [
+  {id:0,name:"Атомное начало",emoji:"⚗️",desc:"Основы строения атома",isBoss:false,completed:false,stars:0,
+   enemyName:"ПРОТОН",enemyHP:60,
+   enemyImg:"https://user-gen-media-assets.s3.amazonaws.com/gemini_images/3491b1e8-a680-426a-a636-b111f06b7a94.png",
+   questions:[
+    {q:"Сколько протонов в атоме водорода?",answers:["1","2","0","3"],correct:0},
+    {q:"Что обозначает атомный номер элемента?",answers:["Число протонов","Число нейтронов","Атомную массу","Число электронов"],correct:0},
+    {q:"Какой заряд имеет нейтрон?",answers:["0 (нейтральный)","+1","-1","+2"],correct:0},
+    {q:"Как называется внешний слой электронов?",answers:["Валентный","Ядерный","Протонный","Нейтронный"],correct:0},
+    {q:"Какова относительная масса протона?",answers:["1","0","1/1836","2"],correct:0}
+  ]},
+  {id:1,name:"Таблица Менделеева",emoji:"📊",desc:"Периодический закон",isBoss:false,completed:false,stars:0,
+   enemyName:"ГАЛОГЕН",enemyHP:80,
+   enemyImg:"https://user-gen-media-assets.s3.amazonaws.com/gemini_images/3491b1e8-a680-426a-a636-b111f06b7a94.png",
+   questions:[
+    {q:"Что объединяет элементы одной группы?",answers:["Число валентных электронов","Атомная масса","Число нейтронов","Тип решётки"],correct:0},
+    {q:"В каком периоде находится натрий Na?",answers:["3-м","1-м","2-м","4-м"],correct:0},
+    {q:"Символ золота в таблице Менделеева:",answers:["Au","Go","Gd","Ag"],correct:0},
+    {q:"Какой элемент самый лёгкий?",answers:["Водород H","Гелий He","Литий Li","Бериллий Be"],correct:0},
+    {q:"Сколько периодов в таблице Менделеева?",answers:["7","8","6","9"],correct:0}
+  ]},
+  {id:2,name:"Химические связи",emoji:"🔗",desc:"Типы химических связей",isBoss:false,completed:false,stars:0,
+   enemyName:"КОВАЛЕНТ",enemyHP:100,
+   enemyImg:"https://user-gen-media-assets.s3.amazonaws.com/gemini_images/3491b1e8-a680-426a-a636-b111f06b7a94.png",
+   questions:[
+    {q:"Какой тип связи между атомами одного неметалла?",answers:["Ковалентная неполярная","Ионная","Металлическая","Водородная"],correct:0},
+    {q:"В молекуле NaCl тип химической связи:",answers:["Ионная","Ковалентная полярная","Металлическая","Ковалентная неполярная"],correct:0},
+    {q:"Водородная связь образуется между:",answers:["H и электроотрицательными атомами","Только молекулами H₂","Атомами металлов","Ионами водорода"],correct:0},
+    {q:"Металлическая связь существует в:",answers:["Меди Cu","Воде H₂O","Соли NaCl","Кислороде O₂"],correct:0},
+    {q:"σ-связь образуется при:",answers:["Осевом перекрывании орбиталей","Боковом перекрывании орбиталей","Передаче электронов","Притяжении ионов"],correct:0}
+  ]},
+  {id:3,name:"БОСС: БАРОН КИСЛОТА",emoji:"💀",desc:"Кислоты и основания",isBoss:true,completed:false,stars:0,
+   enemyName:"БАРОН КИСЛОТА",enemyHP:150,
+   enemyImg:"https://user-gen-media-assets.s3.amazonaws.com/gemini_images/50ed38b6-a452-45cb-b053-45d6920f2d97.png",
+   questions:[
+    {q:"pH нейтрального раствора при 25°C равен:",answers:["7","0","14","10"],correct:0},
+    {q:"Кислота в воде:",answers:["Отдаёт протоны H⁺","Принимает протоны H⁺","Не диссоциирует","Выделяет OH⁻"],correct:0},
+    {q:"Реакция нейтрализации — это взаимодействие:",answers:["Кислоты с основанием","Металла с кислотой","Оксидов между собой","Солей с водой"],correct:0},
+    {q:"Формула соляной кислоты:",answers:["HCl","H₂SO₄","HNO₃","H₃PO₄"],correct:0},
+    {q:"Гидроксид натрия NaOH является:",answers:["Сильным основанием","Слабой кислотой","Нейтральной солью","Амфотерным оксидом"],correct:0},
+    {q:"Лакмус в кислой среде окрашивается в:",answers:["Красный","Синий","Жёлтый","Зелёный"],correct:0}
+  ]}
+];
+const BASE_DAMAGE=20,COMBO_STEP=5,MAX_DAMAGE=50,ENEMY_DMG=15;
+function calcDamage(c){return c<2?BASE_DAMAGE:Math.min(BASE_DAMAGE+(c-1)*COMBO_STEP,MAX_DAMAGE);}
+function comboTier(c){return c>=7?4:c>=5?3:c>=3?2:c>=2?1:0;}
+function comboLabel(c){return c>=7?"MAX КОМБО!!! 🔥":c>=5?"МОЩНЫЙ УДАР! 💥":c>=3?"СЕРИЯ! ⚡":c>=2?"КОМБО! ✨":"";}
+function updateComboBanner(){
+  const banner=document.getElementById('combo-banner'),badge=document.getElementById('combo-badge'),
+        text=document.getElementById('combo-text'),dmgInfo=document.getElementById('combo-dmg-info'),
+        combo=gameData.comboCount;
+  if(combo<2){banner.classList.add('hidden');return;}
+  banner.classList.remove('hidden');
+  const tier=comboTier(combo),dmg=calcDamage(combo);
+  badge.textContent='×'+combo; badge.className='combo-badge cbadge-'+tier;
+  text.textContent=comboLabel(combo); text.className='combo-'+tier;
+  dmgInfo.textContent=dmg+' урон'; dmgInfo.className='combo-'+tier;
+  banner.classList.remove('pulse'); void banner.offsetWidth; banner.classList.add('pulse');
+}
+function showExplanation(q){
+  const p=document.getElementById('explanation-panel');
+  document.getElementById('explanation-text').textContent=q.explanation||'Подумай над этим вопросом ещё раз.';
+  document.getElementById('explanation-correct').innerHTML='<strong>✓ Правильный ответ:</strong> '+q.answers[q.correct];
+  p.classList.add('visible');
+}
+function hideExplanation(){document.getElementById('explanation-panel').classList.remove('visible');}
+// ============ SCREENS ============
+function showScreen(name){
+  stopTimer();
+  document.querySelectorAll('.screen').forEach(s=>s.classList.add('hidden'));
+  document.getElementById('screen-'+name).classList.remove('hidden');
+  if(name==='map')renderMap();
+  if(name==='editor')renderEditor();
+}
+function startGame(){gameData.currentLevelIndex=0;startLevel(0);}
+
+// ============ MAP ============
+function renderMap(){
+  document.getElementById('player-level').textContent=gameData.playerLevel;
+  document.getElementById('map-hp-fill').style.width=(gameData.playerHP/gameData.playerMaxHP*100)+'%';
+  document.getElementById('map-hp-text').textContent=gameData.playerHP;
+  document.getElementById('map-xp-fill').style.width=Math.min(100,gameData.playerXP%100)+'%';
+  document.getElementById('map-xp-text').textContent=gameData.playerXP;
+  const grid=document.getElementById('level-grid');
+  grid.innerHTML='';
+  levels.forEach((lv,i)=>{
+    const locked=i>0&&!levels[i-1].completed;
+    const card=document.createElement('div');
+    card.className='level-card'+(locked?' locked':'')+(lv.completed?' completed':'')+(lv.isBoss?' boss':'');
+    const badge=lv.stars>0?'⭐'.repeat(lv.stars):(locked?'🔒':'—');
+    card.innerHTML=`<div class="level-icon">${lv.emoji}</div><div class="level-info"><div class="level-name">${esc(lv.name)}</div><div class="level-desc">${esc(lv.desc)} · ${lv.questions.length} вопросов</div></div><div class="level-badge">${badge}</div>`;
+    if(!locked)card.addEventListener('click',()=>startLevel(i));
+    grid.appendChild(card);
+  });
+}
+
+// ============ BATTLE ============
+function startLevel(i){
+  const lv=levels[i];
+  gameData.currentLevelIndex=i; gameData.currentQuestionIndex=0;
+  gameData.battleCorrect=0; gameData.battleWrong=0; gameData.battleXP=0;
+  gameData.comboCount=0; gameData.maxCombo=0;
+  gameData.enemyMaxHP=lv.enemyHP; gameData.enemyHP=lv.enemyHP;
+  document.getElementById('battle-level-name').textContent=lv.name;
+  document.getElementById('enemy-name').textContent=lv.enemyName;
+  document.getElementById('enemy-art').src=lv.enemyImg;
+  updateBattleHP(); showScreen('battle'); loadQuestion();
+}
+function updateBattleHP(){
+  const hp=gameData.playerHP,mhp=gameData.playerMaxHP,ehp=gameData.enemyHP,emhp=gameData.enemyMaxHP;
+  document.getElementById('hero-hp-bar').style.width=Math.max(0,hp/mhp*100)+'%';
+  document.getElementById('hero-hp-text').textContent=Math.max(0,hp)+' / '+mhp;
+  document.getElementById('enemy-hp-bar').style.width=Math.max(0,ehp/emhp*100)+'%';
+  document.getElementById('enemy-hp-text').textContent=Math.max(0,ehp)+' / '+emhp;
+}
+function loadQuestion(){
+  const lv=levels[gameData.currentLevelIndex];
+  const qi=gameData.currentQuestionIndex;
+  document.getElementById('question-counter').textContent=(qi+1)+' / '+lv.questions.length;
+  const qd=lv.questions[qi];
+  document.getElementById('question-text').textContent=qd.q;
+  const grid=document.getElementById('answers-grid');
+  grid.innerHTML='';
+  const shuffled=qd.answers.map((a,i)=>({text:a,origIndex:i}));
+  shuffleArr(shuffled);
+  shuffled.forEach(item=>{
+    const btn=document.createElement('button');
+    btn.className='answer-btn'; btn.textContent=item.text; btn.dataset.origIndex=item.origIndex;
+    btn.addEventListener('click',()=>handleAnswer(btn,item.origIndex,qd.correct));
+    grid.appendChild(btn);
+  });
+  document.getElementById('feedback-bar').className='feedback-bar';
+  document.getElementById('next-btn-wrap').style.display='none';
+  hideExplanation();
+updateComboBanner();
+ startTimer();
+}
+function handleAnswer(btn,chosen,correct){
+  document.querySelectorAll('.answer-btn').forEach(b=>b.disabled=true);
+  stopTimer();
+  const lv=levels[gameData.currentLevelIndex];
+  const ok=chosen===correct;
+  const qd=lv.questions[gameData.currentQuestionIndex];
+  if(ok){
+    btn.classList.add('correct');
+    document.querySelectorAll('.answer-btn').forEach(b=>{if(parseInt(b.dataset.origIndex)!==correct)b.classList.add('dimmed');});
+    gameData.comboCount++;
+    if(gameData.comboCount>gameData.maxCombo) gameData.maxCombo=gameData.comboCount;
+    gameData.battleCorrect++;
+    const dmg=calcDamage(gameData.comboCount);
+    gameData.enemyHP=Math.max(0,gameData.enemyHP-dmg);
+    gameData.battleXP+=lv.isBoss?30:20;
+    showFb(true,'✓ Верно! Ты атакуешь врага!');
+    animHero(); spawnDmg(-dmg,'enemy','#2ecc71');
+  } else {
+    btn.classList.add('wrong');
+    document.querySelectorAll('.answer-btn').forEach(b=>{if(parseInt(b.dataset.origIndex)===correct)b.classList.add('correct');else if(b!==btn)b.classList.add('dimmed');});
+    gameData.comboCount=0;
+    gameData.battleWrong++;
+    const dmg=lv.isBoss?20:ENEMY_DMG;
+    gameData.playerHP=Math.max(0,gameData.playerHP-dmg);
+    gameData.battleXP+=5;
+    showFb(false,'✗ Неверно! Враг атаковал тебя!');
+    animEnemy(); spawnDmg(-dmg,'hero','#e74c3c');
+    showExplanation(qd);
+  }
+  updateBattleHP();
+  updateComboBanner();
+  document.getElementById('next-btn-wrap').style.display='flex';
+}
+function showFb(ok,txt){
+  const fb=document.getElementById('feedback-bar');
+  fb.className='feedback-bar show '+(ok?'correct':'wrong');
+  document.getElementById('feedback-text').textContent=txt;
+}
+function animHero(){
+  const h=document.getElementById('hero-art'),e=document.getElementById('enemy-art');
+  h.classList.remove('attack');void h.offsetWidth;h.classList.add('attack');
+  setTimeout(()=>{e.classList.remove('enemy-shake');void e.offsetWidth;e.classList.add('enemy-shake');},200);
+}
+function animEnemy(){
+  const h=document.getElementById('hero-art');
+  h.classList.remove('shake');void h.offsetWidth;h.classList.add('shake');
+}
+function spawnDmg(val,target,color){
+  const arena=document.getElementById('battle-arena');
+  const el=document.createElement('div');
+  el.className='damage-float'; el.textContent=val; el.style.color=color;
+  el.style.left=target==='hero'?'15%':'65%'; el.style.top='20%'; el.style.position='absolute';
+  arena.appendChild(el); setTimeout(()=>el.remove(),1200);
+}
+function nextQuestion(){
+  if(gameData.enemyHP<=0){endBattle(true);return;}
+  if(gameData.playerHP<=0){endBattle(false);return;}
+  gameData.currentQuestionIndex++;
+  const lv=levels[gameData.currentLevelIndex];
+  if(gameData.currentQuestionIndex>=lv.questions.length){
+    endBattle(gameData.battleCorrect>=gameData.battleWrong);
+    return;
+  }
+  loadQuestion();
+}
+function endBattle(won) {
+  const lv       = levels[gameData.currentLevelIndex];
+  const prevStars = lv.stars;       // звёзды ДО этого боя
+  const wasCompleted = lv.completed;
+
+  if (won) {
+    const total = gameData.battleCorrect + gameData.battleWrong;
+    const ratio = total > 0 ? gameData.battleCorrect / total : 0;
+    const newStars = ratio >= 0.9 ? 3 : ratio >= 0.6 ? 2 : 1;
+
+    lv.completed = true;
+    lv.stars = Math.max(prevStars, newStars);
+
+    // ── Расчёт XP ──
+    let xpGain  = 0;
+    let xpLabel = '';
+    let xpClass = '';
+
+    if (!wasCompleted) {
+      // Первое прохождение — полный XP
+      xpGain  = gameData.battleXP;
+      xpLabel = '+' + xpGain + ' XP';
+      xpClass = 'full-xp';
+    } else if (newStars > prevStars) {
+      // Повтор с улучшением звёзд — XP только за разницу
+      const diff = newStars - prevStars;
+      xpGain  = diff * 20;
+      xpLabel = '+' + xpGain + ' XP (бонус за ⭐×' + diff + ')';
+      xpClass = 'bonus-xp';
+    } else {
+      // Повтор без улучшения — XP не даётся
+      xpGain  = 0;
+      xpLabel = 'XP не начислено (уже пройден)';
+      xpClass = 'no-xp';
+    }
+
+    gameData.playerXP += xpGain;
+    if (gameData.playerXP >= gameData.playerLevel * 100) gameData.playerLevel++;
+
+    document.getElementById('result-img').src = 'https://user-gen-media-assets.s3.amazonaws.com/gemini_images/3389c4f8-d2d6-41cc-bc73-94d853e952e4.png';
+    document.getElementById('result-title').textContent = lv.isBoss ? '🏆 БОСС ПОБЕЖДЁН!' : '⚗️ ПОБЕДА!';
+    document.getElementById('result-title').className   = 'result-title';
+    document.getElementById('result-stars').textContent = '⭐'.repeat(newStars);
+    document.getElementById('result-score').textContent = xpLabel;
+    document.getElementById('result-score').className   = 'result-score xp-reward ' + xpClass;
+    document.getElementById('result-next-btn').style.display =
+      gameData.currentLevelIndex < levels.length - 1 ? '' : 'none';
+
+    autoSave();   // ← сохраняем прогресс
+
+  } else {
+    gameData.playerHP = Math.max(30, Math.floor(gameData.playerMaxHP * 0.3));
+    document.getElementById('result-img').src = 'https://user-gen-media-assets.s3.amazonaws.com/gemini_images/3491b1e8-a680-426a-a636-b111f06b7a94.png';
+    document.getElementById('result-title').textContent = '💀 ПОРАЖЕНИЕ...';
+    document.getElementById('result-title').className   = 'result-title defeat';
+    document.getElementById('result-stars').textContent = '💔';
+    const xpConsol = Math.floor(gameData.battleXP / 2);
+    gameData.playerXP += xpConsol;
+    document.getElementById('result-score').textContent = '+' + xpConsol + ' XP (утешительные)';
+    document.getElementById('result-score').className   = 'result-score xp-reward no-xp';
+    document.getElementById('result-next-btn').style.display = 'none';
+    autoSave();   // ← сохраняем даже при поражении (HP изменился)
+  }
+
+  document.getElementById('res-correct').textContent = gameData.battleCorrect;
+  document.getElementById('res-wrong').textContent   = gameData.battleWrong;
+  document.getElementById('res-xp').textContent      = gameData.playerXP;
+  showScreen('result');
+}
+function goToNextLevel(){if(gameData.currentLevelIndex<levels.length-1)startLevel(gameData.currentLevelIndex+1);}
+function replayLevel(){startLevel(gameData.currentLevelIndex);}
+// ============ TIMER ============
+let timerInterval = null;
+let timerSeconds  = 0;
+const TIMER_NORMAL = 15;  // секунд на обычный вопрос
+const TIMER_BOSS   = 10;  // секунд на вопрос у босса
+
+function startTimer() {
+  stopTimer();
+  const lv = levels[gameData.currentLevelIndex];
+  timerSeconds = lv.isBoss ? TIMER_BOSS : TIMER_NORMAL;
+
+  const wrap = document.getElementById('timer-wrap');
+  const fill = document.getElementById('timer-bar-fill');
+  const num  = document.getElementById('timer-num');
+
+  wrap.style.display = 'flex';
+  fill.style.transition = 'none';
+  fill.style.width = '100%';
+  fill.style.background = 'var(--color-correct)';
+  num.textContent = timerSeconds;
+  num.className = 'timer-num';
+
+  // Маленькая пауза чтобы transition сбросился
+  setTimeout(() => {
+    fill.style.transition = 'width 1s linear, background 0.5s ease';
+  }, 50);
+
+  timerInterval = setInterval(() => {
+    timerSeconds--;
+    const pct = (timerSeconds / (lv.isBoss ? TIMER_BOSS : TIMER_NORMAL)) * 100;
+
+    fill.style.width = pct + '%';
+    num.textContent = timerSeconds;
+
+    // Цвет полосы
+    if (pct > 50) {
+      fill.style.background = 'var(--color-correct)';
+      num.className = 'timer-num';
+    } else if (pct > 25) {
+      fill.style.background = '#f0a832';
+      num.className = 'timer-num warning';
+    } else {
+      fill.style.background = 'var(--color-wrong)';
+      num.className = 'timer-num danger';
+    }
+
+    // Время вышло → авто-атака врага
+    if (timerSeconds <= 0) {
+      stopTimer();
+      timeOut();
+    }
+  }, 1000);
+}
+
+function stopTimer() {
+  clearInterval(timerInterval);
+  timerInterval = null;
+  const wrap = document.getElementById('timer-wrap');
+  if (wrap) wrap.style.display = 'none';
+}
+
+function timeOut() {
+  // Блокируем кнопки
+  document.querySelectorAll('.answer-btn').forEach(b => b.disabled = true);
+  const lv  = levels[gameData.currentLevelIndex];
+  const qi  = gameData.currentQuestionIndex;
+  const qd  = lv.questions[qi];
+
+  // Подсвечиваем правильный ответ
+  document.querySelectorAll('.answer-btn').forEach(b => {
+    if (parseInt(b.dataset.origIndex) === qd.correct) b.classList.add('correct');
+    else b.classList.add('dimmed');
+  });
+
+  // Сбрасываем комбо, наносим урон игроку
+  gameData.comboCount = 0;
+  gameData.battleWrong++;
+  const dmg = lv.isBoss ? 20 : ENEMY_DMG;
+  gameData.playerHP = Math.max(0, gameData.playerHP - dmg);
+
+  showFb(false, '⏰ Время вышло! Враг атакует!');
+  animEnemy();
+  spawnDmg(-dmg, 'hero', '#e74c3c');
+  updateBattleHP();
+  updateComboBanner();
+  showExplanation(qd);
+
+  // Показываем кнопку «Далее»
+  document.getElementById('next-btn-wrap').style.display = 'flex';
+
+  // Проверка поражения
+  if (gameData.playerHP <= 0) {
+    setTimeout(() => endBattle(false), 900);
+  }
+}
+
+// ============ EDITOR ============
+function renderEditor(){
+  const body=document.getElementById('editor-body');
+  body.innerHTML='';
+  levels.forEach((lv,li)=>{
+    const sec=document.createElement('div');
+    sec.className='editor-section';
+    sec.innerHTML=`
+      <div class="editor-section-header">📋 УРОВЕНЬ ${li+1} ${lv.isBoss?'👑':''}</div>
+      <div class="level-editor-item">
+        <div class="level-editor-row"><span class="field-label">Название</span><input class="field-input" type="text" value="${esc(lv.name)}" data-level="${li}" data-field="name"></div>
+        <div class="level-editor-row"><span class="field-label">Описание</span><input class="field-input" type="text" value="${esc(lv.desc)}" data-level="${li}" data-field="desc"></div>
+        <div class="level-editor-row">
+          <span class="field-label">Иконка</span><input class="field-input" type="text" value="${esc(lv.emoji)}" data-level="${li}" data-field="emoji" style="max-width:70px">
+          <span class="field-label" style="margin-left:8px">HP врага</span><input class="field-input" type="number" value="${lv.enemyHP}" data-level="${li}" data-field="enemyHP" style="max-width:80px">
+          <span class="field-label" style="margin-left:8px">Имя врага</span><input class="field-input" type="text" value="${esc(lv.enemyName)}" data-level="${li}" data-field="enemyName">
+        </div>
+        <div class="level-editor-row">
+          <label style="font-size:var(--text-xs);color:var(--color-text-muted);display:flex;align-items:center;gap:6px;cursor:pointer;">
+            <input type="checkbox" ${lv.isBoss?'checked':''} data-level="${li}" data-field="isBoss" style="width:16px;height:16px;cursor:pointer;accent-color:var(--color-gold)"> Уровень-босс (👑)
+          </label>
+          <button class="del-btn" onclick="deleteLevel(${li})" style="margin-left:auto">🗑 Удалить уровень</button>
+        </div>
+      </div>
+      <div class="editor-section-header" style="border-top:1px solid var(--color-border)">❓ ВОПРОСЫ (${lv.questions.length})</div>
+    `;
+    lv.questions.forEach((q,qi)=>{
+      const qEl=document.createElement('div');
+      qEl.className='question-editor-item';
+      const answersHtml=q.answers.map((a,ai)=>`
+        <div class="answer-editor-wrap">
+          <span class="answer-editor-label">${ai+1}${ai===q.correct?' <span class="correct-dot"></span> ✓':''}</span>
+          <input class="field-input" type="text" value="${esc(a)}" data-level="${li}" data-q="${qi}" data-a="${ai}" placeholder="Вариант ${ai+1}">
+        </div>`).join('');
+      const selectOpts=q.answers.map((a,ai)=>`<option value="${ai}" ${ai===q.correct?'selected':''}>${ai+1}. ${a.substring(0,25)}</option>`).join('');
+     qEl.innerHTML=`
+  <div style="display:flex;align-items:center;justify-content:space-between">
+    <span class="question-num">❓ Вопрос ${qi+1}</span>
+    <button class="del-btn" onclick="deleteQuestion(${li},${qi})">✕</button>
+  </div>
+  <input class="field-input" type="text" value="${esc(q.q)}" data-level="${li}" data-q="${qi}" data-field="q" placeholder="Текст вопроса" style="width:100%">
+  <div class="answers-editor">${answersHtml}</div>
+  <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+    <span style="font-size:var(--text-xs);color:var(--color-text-muted)">Правильный ответ:</span>
+    <select class="correct-select" data-level="${li}" data-q="${qi}" style="max-width:220px">${selectOpts}</select>
+  </div>
+  <div style="display:flex;flex-direction:column;gap:var(--space-1);margin-top:var(--space-2);">
+    <span style="font-size:var(--text-xs);color:var(--color-wrong);display:flex;align-items:center;gap:4px;">⚠ Пояснение при неверном ответе</span>
+    <textarea class="field-input" data-level="${li}" data-q="${qi}" data-field="explanation"
+      placeholder="Объясни почему этот ответ правильный..." rows="2"
+      style="width:100%;resize:vertical;font-family:'Inter',sans-serif;">${esc(q.explanation||'')}</textarea>
+  </div>`;
+      sec.appendChild(qEl);
+    });
+    const addBtn=document.createElement('button');
+    addBtn.className='add-btn';
+    addBtn.style.cssText='margin:12px 16px;width:calc(100% - 32px)';
+    addBtn.innerHTML='+ Добавить вопрос';
+    addBtn.onclick=()=>addQuestion(li);
+    sec.appendChild(addBtn);
+    body.appendChild(sec);
+  });
+}
+function deleteLevel(li){
+  if(levels.length<=1){showToast('Нужен хотя бы 1 уровень!');return;}
+  if(confirm('Удалить уровень "'+(levels[li].name)+'"?')){levels.splice(li,1);renderEditor();}
+}
+function addLevel(){
+  levels.push({id:levels.length,name:"Новый уровень",emoji:"🧪",desc:"Описание уровня",isBoss:false,completed:false,stars:0,enemyName:"ВРАГ",enemyHP:80,
+    enemyImg:"https://user-gen-media-assets.s3.amazonaws.com/gemini_images/3491b1e8-a680-426a-a636-b111f06b7a94.png",
+    questions:[{q:"Введите вопрос...",answers:["Вариант A","Вариант B","Вариант C","Вариант D"],correct:0,explanation}]});
+  renderEditor();
+  setTimeout(()=>document.getElementById('editor-body').lastElementChild?.scrollIntoView({behavior:'smooth',block:'start'}),100);
+}
+function deleteQuestion(li,qi){
+  if(levels[li].questions.length<=1){showToast('Нужен хотя бы 1 вопрос!');return;}
+  levels[li].questions.splice(qi,1);renderEditor();
+}
+function addQuestion(li){
+  levels[li].questions.push({q:"Введите вопрос...",answers:["Вариант A","Вариант B","Вариант C","Вариант D"],correct:0,explanation:""});
+  renderEditor();
+}
+function saveEditorData(){
+  document.querySelectorAll('.field-input[data-level]').forEach(inp=>{
+    const li=parseInt(inp.dataset.level);
+    const qi=inp.dataset.q!==undefined?parseInt(inp.dataset.q):null;
+    const ai=inp.dataset.a!==undefined?parseInt(inp.dataset.a):null;
+    const f=inp.dataset.field;
+    if(qi!==null&&ai!==null)levels[li].questions[qi].answers[ai]=inp.value;
+    else if(qi!==null&&f==='q')levels[li].questions[qi].q=inp.value;
+    else if(qi!==null&&f==='explanation')levels[li].questions[qi].explanation=inp.value;
+    else if(f==='enemyHP')levels[li].enemyHP=parseInt(inp.value)||80;
+    else if(f)levels[li][f]=inp.value;
+  });
+  document.querySelectorAll('input[type=checkbox][data-level]').forEach(cb=>{
+    const li=parseInt(cb.dataset.level);
+    if(cb.dataset.field==='isBoss')levels[li].isBoss=cb.checked;
+  });
+  document.querySelectorAll('.correct-select').forEach(sel=>{
+    levels[parseInt(sel.dataset.level)].questions[parseInt(sel.dataset.q)].correct=parseInt(sel.value);
+  });
+  showToast('💾 Сохранено!');
+  renderEditor();
+}
+
+// ============ UTILS ============
+function shuffleArr(a){for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];}}
+function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+let toastT;
+function showToast(msg){
+  const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');
+  clearTimeout(toastT);toastT=setTimeout(()=>t.classList.remove('show'),2500);
+}
+// ============ SAVE SYSTEM ============
+const SAVE_KEY = 'chemquest_v1_save';
+
+function showStartScreen() {
+  document.getElementById('block-google').style.display   = 'flex';
+  document.getElementById('block-newgame').style.display  = 'none';
+  showScreen('start');
+}
+
+function showNewGameForm() {
+  document.getElementById('block-save').style.display    = 'none';
+  document.getElementById('block-newgame').style.display = 'flex';
+  setTimeout(() => document.getElementById('name-input').focus(), 100);
+}
+
+function confirmNewGame() {
+  if (!confirm('Начать новую игру?\nВесь текущий прогресс будет удалён.')) return;
+  localStorage.removeItem(SAVE_KEY);
+  showNewGameForm();
+}
+
+function startNewGame() {
+  const name = (document.getElementById('name-input').value || '').trim();
+  if (!name) { showToast('⚠ Введи своё имя!'); return; }
+  // Сброс состояния
+  gameData.playerName  = name;
+  gameData.playerHP    = 100;
+  gameData.playerXP    = 0;
+  gameData.playerLevel = 1;
+  levels.forEach(lv => { lv.completed = false; lv.stars = 0; });
+  autoSave();
+    document.getElementById('player-name-map').textContent = name;
+  showScreen('title');
+}
+
+function loadSave() {
+  const s = JSON.parse(localStorage.getItem(SAVE_KEY));
+  if (!s) { showNewGameForm(); return; }
+  gameData.playerName  = s.playerName  || 'Игрок';
+  gameData.playerHP    = s.playerHP    ?? 100;
+  gameData.playerXP    = s.playerXP    ?? 0;
+  gameData.playerLevel = s.playerLevel ?? 1;
+  levels.forEach(lv => {
+    const saved = s.completedLevels?.[lv.id];
+    if (saved) { lv.completed = saved.completed; lv.stars = saved.stars; }
+    else        { lv.completed = false; lv.stars = 0; }
+  });
+  document.getElementById('player-name-map').textContent = gameData.playerName;
+  showScreen('title');
+}
+
+function autoSave() {
+  const completedLevels = {};
+  levels.forEach(lv => {
+    completedLevels[lv.id] = { completed: lv.completed, stars: lv.stars };
+  });
+  localStorage.setItem(SAVE_KEY, JSON.stringify({
+    playerName:      gameData.playerName || 'Игрок',
+    playerHP:        gameData.playerHP,
+    playerXP:        gameData.playerXP,
+    playerLevel:     gameData.playerLevel,
+    completedLevels,
+    lastSaved:       new Date().toISOString()
+  }));
+  pushToLeaderboard();
+}
+showScreen('start');
+initStartScreen();
+
+// ============ 8-BIT MUSIC ENGINE ============
+let audioCtx = null;
+let musicPlaying = false;
+let musicNodes = [];
+let musicScheduleId = null;
+let nextNoteTime = 0;
+let currentTrack = 'title';
+
+// Note frequencies
+const NOTE = {
+  C4:261.63,D4:293.66,E4:329.63,F4:349.23,G4:392.00,A4:440.00,B4:493.88,
+  C5:523.25,D5:587.33,E5:659.25,F5:698.46,G5:783.99,A5:880.00,B5:987.77,
+  C3:130.81,G3:196.00,A3:220.00,_:0
+};
+
+// Tracks: array of [note, duration_in_beats]
+const TRACKS = {
+  title: {
+    bpm: 148,
+    melody: [
+      [NOTE.E5,.5],[NOTE.E5,.5],[NOTE._,.5],[NOTE.E5,.5],[NOTE._,.5],[NOTE.C5,.5],[NOTE.E5,1],
+      [NOTE.G5,1],[NOTE._,1],[NOTE.G4,1],[NOTE._,1],
+      [NOTE.C5,.75],[NOTE._,.25],[NOTE.G4,.75],[NOTE._,.25],[NOTE.E4,1],
+      [NOTE.A4,.5],[NOTE.B4,.5],[NOTE.A4s,.5],[NOTE.A4,.5],
+      [NOTE.G4,.66],[NOTE.E5,.66],[NOTE.G5,.66],[NOTE.A5,.5],[NOTE.F5,.5],[NOTE.G5,.5],
+      [NOTE.E5,1],[NOTE.C5,.5],[NOTE.D5,.5],[NOTE.B4,1]
+    ].map(n=>n),
+    bass: [
+      [NOTE.C3,1],[NOTE.C3,1],[NOTE.G3,1],[NOTE.G3,1],
+      [NOTE.A3,1],[NOTE.A3,1],[NOTE.F4,1],[NOTE.F4,1]
+    ]
+  },
+  battle: {
+    bpm: 180,
+    melody: [
+      [NOTE.E5,.25],[NOTE.E5,.25],[NOTE._,.25],[NOTE.E5,.25],
+      [NOTE.C5,.25],[NOTE.E5,.25],[NOTE.G5,.5],[NOTE._,.5],
+      [NOTE.A5,.5],[NOTE.F5,.5],[NOTE.A4,.5],[NOTE._,.5],
+      [NOTE.G5,.25],[NOTE.F5,.25],[NOTE.E5,.25],[NOTE.D5,.25],
+      [NOTE.C5,.5],[NOTE.G4,.5],[NOTE.E4,.5],[NOTE._,.5]
+    ],
+    bass: [
+      [NOTE.C3,.5],[NOTE.G3,.5],[NOTE.A3,.5],[NOTE.E3,.5],
+      [NOTE.F3,.5],[NOTE.C3,.5],[NOTE.G3,1]
+    ]
+  },
+  boss: {
+    bpm: 200,
+    melody: [
+      [NOTE.E5,.25],[NOTE._,.25],[NOTE.E5,.25],[NOTE._,.25],
+      [NOTE.E5,.25],[NOTE._,.25],[NOTE.C5,.25],[NOTE.E5,.25],
+      [NOTE.G5,.5],[NOTE._,.5],[NOTE.G4,.5],[NOTE._,.5],
+      [NOTE.B4,.5],[NOTE.A4,.25],[NOTE.A4,.25],[NOTE.G5,.25],[NOTE.F5,.25],[NOTE.E5,.5],
+    ],
+    bass: [
+      [NOTE.C3,.5],[NOTE.C3,.5],[NOTE.G3,.5],[NOTE.A3,.5],
+      [NOTE.F3,.5],[NOTE.G3,.5],[NOTE.E3,1]
+    ]
+  },
+
+  narration: {
+    bpm: 72,
+    melody: [
+      [NOTE.A4,2],[NOTE.G4,1],[NOTE.E4,2],[NOTE._,1],
+      [NOTE.F4,2],[NOTE.E4,1],[NOTE.D4,2],[NOTE._,1],
+      [NOTE.C4,2],[NOTE.D4,1],[NOTE.E4,2],[NOTE.F4,1],
+      [NOTE.G4,3],[NOTE._,1],
+      [NOTE.A4,2],[NOTE.C5,1],[NOTE.B4,2],[NOTE._,1],
+      [NOTE.G4,2],[NOTE.A4,1],[NOTE.G4,2],[NOTE.E4,1],
+      [NOTE.F4,3],[NOTE.E4,1],[NOTE.D4,4],[NOTE._,2]
+    ],
+    bass: [
+      [NOTE.A3,2],[NOTE.E3,2],[NOTE.F3,2],[NOTE.C3,2],
+      [NOTE.G3,2],[NOTE.D3,2],[NOTE.A3,4]
+    ]
+  },
+};
+// Add missing note
+NOTE.A4s = 466.16;
+NOTE.E3 = 164.81;
+NOTE.F4 = 349.23;
+NOTE.F3 = 174.61;
+NOTE.D3 = 146.83;
+NOTE.A3s = 233.08;
+
+function getAudioCtx(){
+  if(!audioCtx) audioCtx = new (window.AudioContext||window.webkitAudioContext)();
+  if(audioCtx.state==='suspended') audioCtx.resume();
+  return audioCtx;
+}
+
+function playNote(freq, startTime, duration, type='square', gain=0.12){
+  if(!freq || freq===0) return;
+  const ctx = getAudioCtx();
+  const osc = ctx.createOscillator();
+  const vol = ctx.createGain();
+  osc.connect(vol); vol.connect(ctx.destination);
+  osc.type = type;
+  osc.frequency.setValueAtTime(freq, startTime);
+  vol.gain.setValueAtTime(0, startTime);
+  vol.gain.linearRampToValueAtTime(gain, startTime + 0.01);
+  vol.gain.setValueAtTime(gain, startTime + duration - 0.05);
+  vol.gain.linearRampToValueAtTime(0, startTime + duration);
+  osc.start(startTime);
+  osc.stop(startTime + duration);
+  musicNodes.push(osc);
+}
+
+function scheduleTrack(trackKey){
+  const ctx = getAudioCtx();
+  const track = TRACKS[trackKey] || TRACKS.title;
+  const secPerBeat = 60 / track.bpm;
+  let t = ctx.currentTime + 0.05;
+
+  // melody loop
+  let mt = t;
+  for(let i=0; i<3; i++){
+    track.melody.forEach(([freq,beats])=>{
+      playNote(freq, mt, beats*secPerBeat*0.9, 'square', 0.1);
+      mt += beats*secPerBeat;
+    });
+  }
+  // bass loop
+  let bt = t;
+  const bassLoops = Math.ceil((mt - t) / (track.bass.reduce((s,[,b])=>s+b,0)*secPerBeat));
+  for(let i=0; i<bassLoops+1; i++){
+    track.bass.forEach(([freq,beats])=>{
+      if(bt < mt) playNote(freq, bt, beats*secPerBeat*0.8, 'sawtooth', 0.06);
+      bt += beats*secPerBeat;
+    });
+  }
+
+  // schedule next loop
+  const loopDuration = (mt - t) * 1000;
+  musicScheduleId = setTimeout(()=>{ if(musicPlaying) scheduleTrack(trackKey); }, loopDuration - 200);
+}
+
+function stopMusic(){
+  musicPlaying = false;
+  clearTimeout(musicScheduleId);
+  musicNodes.forEach(n=>{ try{n.stop();}catch(e){} });
+  musicNodes = [];
+}
+
+function startMusic(trackKey='title'){
+  stopMusic();
+  currentTrack = trackKey;
+  musicPlaying = true;
+  scheduleTrack(trackKey);
+}
+
+function toggleMusic(){
+  if(musicPlaying){
+    stopMusic();
+    document.getElementById('music-toggle-btn').textContent='🎵 МУЗЫКА: ВЫКЛ';
+  } else {
+    startMusic(currentTrack);
+    document.getElementById('music-toggle-btn').textContent='🎵 МУЗЫКА: ВКЛ';
+  }
+}
+
+// Hook music to screen changes
+const _origShowScreen = showScreen;
+window.showScreen = function(name){
+  _origShowScreen(name);
+  if(!musicPlaying) return;
+  if(name==='title') startMusic('title');
+  else if(name==='map') startMusic('title');
+  else if(name==='result') startMusic('title');
+  // cutscene music handled separately in startCutscene
+};
+const _origStartLevel = startLevel;
+window.startLevel = function(i){
+  _origStartLevel(i);
+  if(!musicPlaying) return;
+  const lv = levels[i];
+  startMusic(lv.isBoss ? 'boss' : 'battle');
+};
+
+// Auto-start music on first user interaction (browser policy)
+document.addEventListener('click', function startOnInteract(){
+  if(!musicPlaying){
+    musicPlaying = true;
+    startMusic('title');
+    document.getElementById('music-toggle-btn').textContent='🎵 МУЗЫКА: ВКЛ';
+  }
+  document.removeEventListener('click', startOnInteract);
+}, {once: true});
+
+
+// ============ CUTSCENE ENGINE ============
+const CUTSCENE_SLIDES = [
+  {
+    img: 'https://user-gen-media-assets.s3.amazonaws.com/gemini_images/dcb8b842-8626-4f8f-b5f8-291b43d5484d.png',
+    speaker: 'РАССКАЗЧИК',
+    text: 'В далёкой стране Химии жил молодой учёный по имени Хим. Каждую ночь он читал древние книги и ставил опыты в своей лаборатории...'
+  },
+  {
+    img: 'https://user-gen-media-assets.s3.amazonaws.com/gemini_images/cd5d4ddc-e16c-4115-aed5-6a745072b895.png',
+    speaker: 'РАССКАЗЧИК',
+    text: 'Но тьма пришла в Химию. Злой Барон Кислота захватил Периодическое Королевство. Его армия монстров сеяла хаос в каждом элементе...'
+  },
+  {
+    img: 'https://user-gen-media-assets.s3.amazonaws.com/gemini_images/0013fa30-2e57-4e56-8671-e2c708b7ae04.png',
+    speaker: 'ПРОФЕССОР МЕНДЕЛИЙ',
+    text: 'Только тот, кто овладеет знаниями химии, сможет победить Барона. Хим, ты должен пройти испытания каждого уровня. Вперёд!'
+  },
+  {
+    img: 'https://user-gen-media-assets.s3.amazonaws.com/gemini_images/3668eb63-eb2b-4a2b-83aa-b69d41ba0935.png',
+    speaker: 'ХИМ',
+    text: 'Я готов. Мои знания — моё оружие. Барон Кислота, я иду за тобой!'
+  }
+];
+
+let csIndex = 0;
+let csTyping = false;
+let csTypeTimer = null;
+let csFullText = '';
+let csOnFinish = null;
+
+function startCutscene(onFinish) {
+  csIndex = 0;
+  csOnFinish = onFinish;
+  showScreen('cutscene');
+  showCutsceneSlide(0);
+  if(musicPlaying) startMusic('narration');
+}
+
+function showCutsceneSlide(i) {
+  const slide = CUTSCENE_SLIDES[i];
+  const total = CUTSCENE_SLIDES.length;
+
+  document.getElementById('cutscene-img').src = slide.img;
+  document.getElementById('cutscene-img').style.opacity = '0';
+  setTimeout(() => document.getElementById('cutscene-img').style.opacity = '1', 50);
+
+  document.getElementById('cutscene-speaker').textContent = slide.speaker;
+  document.getElementById('cutscene-slide-num').textContent = (i+1) + ' / ' + total;
+  document.getElementById('cutscene-progress-fill').style.width = ((i+1)/total*100) + '%';
+  document.getElementById('cutscene-hint').style.opacity = '0';
+  csReadyToAdvance = false;
+
+  typeText(slide.text, document.getElementById('cutscene-typed'), 28, () => {
+    document.getElementById('cutscene-hint').style.opacity = '1';
+    setTimeout(() => { csReadyToAdvance = true; }, 400);
+  });
+}
+
+function typeText(text, el, speed, onDone) {
+  clearTimeout(csTypeTimer);
+  csTyping = true;
+  csFullText = text;
+  el.textContent = '';
+  let i = 0;
+  function tick() {
+    if (i < text.length) {
+      el.textContent += text[i++];
+      csTypeTimer = setTimeout(tick, speed);
+    } else {
+      csTyping = false;
+      if (onDone) onDone();
+    }
+  }
+  tick();
+}
+
+let csReadyToAdvance = false;
+function cutsceneClick() {
+  if (csTyping) {
+    clearTimeout(csTypeTimer);
+    csTyping = false;
+    document.getElementById('cutscene-typed').textContent = csFullText;
+    document.getElementById('cutscene-hint').style.opacity = '1';
+    setTimeout(() => { csReadyToAdvance = true; }, 300);
+    return;
+  }
+  if (!csReadyToAdvance) return;
+  csReadyToAdvance = false;
+  csIndex++;
+  if (csIndex >= CUTSCENE_SLIDES.length) {
+    endCutscene();
+  } else {
+    showCutsceneSlide(csIndex);
+  }
+}
+
+function skipCutscene() {
+  clearTimeout(csTypeTimer);
+  endCutscene();
+}
+
+function endCutscene() {
+  if(musicPlaying) startMusic('title');
+  if (csOnFinish) csOnFinish();
+}
+
+// Hook startGame to show cutscene first
+const _origStartGame = startGame;
+window.startGame = function() {
+  startCutscene(() => {
+    gameData.currentLevelIndex = 0;
+    startLevel(0);
+  });
+};
+// ============ EDITOR ACCESS CONTROL ============
+const EDITOR_PASSWORD = 'химия2026'; // ← измени на свой пароль
+let _logoClicks = 0;
+let _logoTimer  = null;
+
+function openPwdModal() {
+  const overlay = document.getElementById('pwd-overlay');
+  const input   = document.getElementById('pwd-input');
+  const error   = document.getElementById('pwd-error');
+  error.textContent = '';
+  input.value = '';
+  overlay.classList.add('visible');
+  setTimeout(() => input.focus(), 150);
+}
+
+function closePwdModal(e) {
+  // Если клик был по оверлею (фону) — закрываем
+  if (e && e.target !== document.getElementById('pwd-overlay')) return;
+  document.getElementById('pwd-overlay').classList.remove('visible');
+  document.getElementById('pwd-input').value = '';
+  document.getElementById('pwd-error').textContent = '';
+}
+
+function checkEditorPassword() {
+  const val   = document.getElementById('pwd-input').value;
+  const error = document.getElementById('pwd-error');
+  if (val === EDITOR_PASSWORD) {
+    document.getElementById('pwd-overlay').classList.remove('visible');
+    document.getElementById('pwd-input').value = '';
+    showScreen('editor');
+  } else {
+    error.textContent = '❌ Неверный пароль';
+    document.getElementById('pwd-input').value = '';
+    document.getElementById('pwd-input').focus();
+    // Тряска модала
+    const modal = document.querySelector('.pwd-modal');
+    modal.classList.remove('shake'); void modal.offsetWidth; modal.classList.add('shake');
+  }
+}
+
+// Ctrl + Shift + E
+document.addEventListener('keydown', e => {
+  if (e.ctrlKey && e.shiftKey && e.key === 'E') {
+    e.preventDefault();
+    openPwdModal();
+  }
+  // Esc — закрыть модал
+  if (e.key === 'Escape') {
+    document.getElementById('pwd-overlay').classList.remove('visible');
+  }
+});
+
+// 5 кликов по логотипу (для планшета)
+document.addEventListener('DOMContentLoaded', () => {
+  const logo = document.querySelector('.game-logo');
+  if (!logo) return;
+  logo.addEventListener('click', () => {
+    _logoClicks++;
+    clearTimeout(_logoTimer);
+    _logoTimer = setTimeout(() => _logoClicks = 0, 2500);
+    if (_logoClicks >= 5) {
+      _logoClicks = 0;
+      openPwdModal();
+    }
+  });
+});
+// ============ FIREBASE LEADERBOARD ============
+async function pushToLeaderboard() {
+  if (!window._firebaseReady) return;
+  try {
+    const playerId   = getPlayerId();
+    const totalStars = levels.reduce((acc, lv) => acc + (lv.stars || 0), 0);
+    const completed  = levels.filter(lv => lv.completed).length;
+    await window._fsSetDoc(
+      window._fsDoc(window._db, 'leaderboard', playerId),
+      {
+        name:       gameData.playerName || 'Игрок',
+        xp:         gameData.playerXP   || 0,
+        level:      gameData.playerLevel || 1,
+        stars:      totalStars,
+        completed:  completed,
+        total:      levels.length,
+        lastPlayed: new Date().toISOString()
+      }
+    );
+  } catch(e) {
+    console.warn('Firebase push error:', e);
+  }
+}
+
+async function loadLeaderboard() {
+  const list = document.getElementById('leaders-list');
+  if (!list) return;
+  list.innerHTML = '<div style="text-align:center;color:var(--color-text-muted);font-family:\'Press Start 2P\',monospace;font-size:var(--text-xs);padding:var(--space-8)">⏳ Загрузка...</div>';
+
+  if (!window._firebaseReady) {
+    list.innerHTML = '<div style="text-align:center;color:var(--color-wrong);font-family:\'Press Start 2P\',monospace;font-size:var(--text-xs);padding:var(--space-8)">⚠ Firebase не подключён</div>';
+    return;
+  }
+
+  try {
+    const q    = window._fsQuery(
+      window._fsCollection(window._db, 'leaderboard'),
+      window._fsOrderBy('xp', 'desc'),
+      window._fsLimit(10)
+    );
+    const snap = await window._fsGetDocs(q);
+    const myId = getPlayerId();
+
+    if (snap.empty) {
+      list.innerHTML = '<div style="text-align:center;color:var(--color-text-muted);font-family:\'Press Start 2P\',monospace;font-size:var(--text-xs);padding:var(--space-8)">Пока никто не играл 👀</div>';
+      return;
+    }
+
+    list.innerHTML = '';
+    const medals = ['🥇','🥈','🥉'];
+
+    snap.docs.forEach((docSnap, i) => {
+      const d    = docSnap.data();
+      const isMe = docSnap.id === myId;
+      const row  = document.createElement('div');
+      row.className = 'leader-row' + (isMe ? ' is-me' : '');
+      row.innerHTML = `
+        <span class="leader-rank">${medals[i] || (i + 1)}</span>
+        <span class="leader-name">${esc(d.name)}${isMe ? ' <span style="color:var(--color-primary)">(ты)</span>' : ''}</span>
+        <span class="leader-stars">⭐ ${d.stars || 0}</span>
+        <span class="leader-xp">${d.xp || 0} XP</span>
+      `;
+      list.appendChild(row);
+    });
+  } catch(e) {
+    list.innerHTML = '<div style="text-align:center;color:var(--color-wrong);font-family:\'Press Start 2P\',monospace;font-size:var(--text-xs);padding:var(--space-8)">⚠ Ошибка загрузки</div>';
+    console.warn('Firebase load error:', e);
+  }
+}
+
+function getPlayerId() {
+  return window._firebaseUID || localStorage.getItem('chemquest_player_id') || 'anonymous';
+}
+// ============ GOOGLE AUTH + NICKNAME ============
+
+// Главная функция входа
+async function handleGoogleSignIn() {
+  const btn = document.getElementById('google-signin-btn');
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ Входим...'; }
+
+  const user = await window.signInWithGoogle();
+  if (!user) {
+    if (btn) { btn.disabled = false; btn.textContent = '🔑 Войти через Google'; }
+    showToast('❌ Ошибка входа');
+    return;
+  }
+
+  window._firebaseUID = user.uid;
+
+  // Проверяем есть ли уже запись в Firestore
+  const ref  = window._fsDoc(window._db, 'leaderboard', user.uid);
+  const snap = await window._fsGetDoc(ref);
+
+  if (snap.exists()) {
+    // Уже играл — загружаем данные
+    const data = snap.data();
+    gameData.playerName  = data.name;
+    gameData.playerXP    = data.xp    || 0;
+    gameData.playerLevel = data.level || 1;
+    gameData.playerHP    = 100;
+    levels.forEach(lv => {
+      const saved = data.levelData?.[lv.id];
+      if (saved) { lv.completed = saved.completed; lv.stars = saved.stars; }
+      else        { lv.completed = false; lv.stars = 0; }
+    });
+    autoSave();
+    document.getElementById('player-name-map').textContent = gameData.playerName;
+    showScreen('title');
+  } else {
+    // Новый игрок — показать форму никнейма
+    showNicknameForm();
+  }
+}
+
+function showNicknameForm() {
+  document.getElementById('block-newgame').style.display    = 'flex';
+  document.getElementById('block-google').style.display     = 'none';
+  setTimeout(() => document.getElementById('name-input').focus(), 100);
+}
+
+async function startNewGame() {
+  const name = (document.getElementById('name-input').value || '').trim();
+  if (!name) { showToast('⚠ Введи игровое имя!'); return; }
+  if (name.length < 2) { showToast('⚠ Слишком короткое имя!'); return; }
+
+  gameData.playerName  = name;
+  gameData.playerHP    = 100;
+  gameData.playerXP    = 0;
+  gameData.playerLevel = 1;
+  levels.forEach(lv => { lv.completed = false; lv.stars = 0; });
+
+  autoSave();
+  document.getElementById('player-name-map').textContent = name;
+  await pushToLeaderboard(); // сразу фиксируем имя в Firebase
+  showStartScreen();
+}
+
+function getPlayerId() {
+  return window._firebaseUID || localStorage.getItem('chemquest_player_id') || 'anonymous';
+}
+</script>
+<!-- LEADERBOARD -->
+<div class="screen hidden" id="screen-leaders">
+  <div style="width:100%;max-width:500px;display:flex;align-items:center;gap:var(--space-3);padding:var(--space-3) var(--space-4);background:var(--color-surface);border:1px solid var(--color-border);border-radius:var(--radius-lg);">
+    <button class="battle-back-btn" onclick="showScreen('title')" aria-label="Назад">&#8592;</button>
+    <span style="font-family:'Press Start 2P',monospace;font-size:var(--text-xs);color:var(--color-primary);flex:1;">🏆 ТАБЛИЦА ЛИДЕРОВ</span>
+    <button class="battle-back-btn" onclick="loadLeaderboard()" aria-label="Обновить" title="Обновить">&#8635;</button>
+  </div>
+  <div id="leaders-list" style="width:100%;max-width:500px;display:flex;flex-direction:column;gap:var(--space-2);"></div>
+</div>
+<!-- PASSWORD MODAL -->
+<div class="pwd-overlay" id="pwd-overlay" onclick="closePwdModal(event)">
+  <div class="pwd-modal" onclick="event.stopPropagation()">
+    <div class="pwd-modal-title">🔐 ДОСТУП К РЕДАКТОРУ</div>
+    <div class="pwd-modal-sub">Только для преподавателя</div>
+    <input class="field-input" id="pwd-input" type="password"
+      placeholder="Введи пароль..."
+      style="width:100%; text-align:center; font-size:var(--text-base);"
+      onkeydown="if(event.key==='Enter')checkEditorPassword()">
+    <div class="pwd-error" id="pwd-error"></div>
+    <div style="display:flex; gap:var(--space-2);">
+      <button class="btn btn-ghost" onclick="closePwdModal()" style="flex:1;">Отмена</button>
+      <button class="btn btn-primary" onclick="checkEditorPassword()" style="flex:2;">ВОЙТИ</button>
+    </div>
+    <div class="pwd-hint">Ctrl+Shift+E или 5 кликов по логотипу</div>
+  </div>
+</div>
+</body>
+</html>
