@@ -13,7 +13,7 @@
   import { getFirestore, doc, setDoc, getDoc, getDocs,
            collection, query, orderBy, where, limit }
     from 'https://www.gstatic.com/firebasejs/10.11.0/firebase-firestore.js';
-  import { getAuth, signInWithPopup, signInWithRedirect, getRedirectResult, GoogleAuthProvider, onAuthStateChanged }
+  import { getAuth, signInWithPopup, GoogleAuthProvider, onAuthStateChanged }
     from 'https://www.gstatic.com/firebasejs/10.11.0/firebase-auth.js';
 
   const firebaseConfig = {
@@ -30,15 +30,17 @@
   const auth     = getAuth(app);
   const provider = new GoogleAuthProvider();
 
+  // Глобальный вход через Google
+  window.signInWithGoogle = async function() {
+    try {
+      const result = await signInWithPopup(auth, provider);
+      return result.user;
+    } catch(e) {
+      console.warn('Google sign-in error:', e);
+      return null;
+    }
+  };
 
-// Ловим результат после редиректа на мобильных
-
-
-getRedirectResult(auth).then(result => {
-  if (result?.user) {
-    console.log('Вошёл через redirect:', result.user.email);
-  }
-}).catch(e => console.warn('Redirect result error:', e));
   onAuthStateChanged(auth, user => {
     if (user) {
       window._firebaseUID   = user.uid;
@@ -51,8 +53,6 @@ getRedirectResult(auth).then(result => {
 
   window._db           = db;
   window._auth         = auth;
-  window.signInWithPopup = signInWithPopup;
-window.signInWithRedirect = signInWithRedirect;
   window._fsDoc        = doc;
   window._fsSetDoc     = setDoc;
   window._fsGetDoc     = getDoc;
@@ -1320,7 +1320,7 @@ function autoSave() {
   pushToLeaderboard();
 }
 showScreen('start');
-
+initStartScreen();
 
 // ============ 8-BIT MUSIC ENGINE ============
 let audioCtx = null;
@@ -1668,7 +1668,7 @@ function checkEditorPassword() {
 
 // Ctrl + Shift + E
 document.addEventListener('keydown', e => {
-  if (e.ctrlKey && e.shiftKey && (e.key === 'E' || e.key === 'e')) {
+  if (e.ctrlKey && e.shiftKey && e.key === 'E') {
     e.preventDefault();
     openPwdModal();
   }
@@ -1679,21 +1679,19 @@ document.addEventListener('keydown', e => {
 });
 
 // 5 кликов по логотипу (для планшета)
-(function() {
-  const logos = document.querySelectorAll('.game-logo');
-  logos.forEach(logo => {
-    logo.style.cursor = 'pointer';
-    logo.addEventListener('click', () => {
-      _logoClicks++;
-      clearTimeout(_logoTimer);
-      _logoTimer = setTimeout(() => _logoClicks = 0, 2500);
-      if (_logoClicks >= 5) {
-        _logoClicks = 0;
-        openPwdModal();
-      }
-    });
+document.addEventListener('DOMContentLoaded', () => {
+  const logo = document.querySelector('.game-logo');
+  if (!logo) return;
+  logo.addEventListener('click', () => {
+    _logoClicks++;
+    clearTimeout(_logoTimer);
+    _logoTimer = setTimeout(() => _logoClicks = 0, 2500);
+    if (_logoClicks >= 5) {
+      _logoClicks = 0;
+      openPwdModal();
+    }
   });
-})();
+});
 // ============ FIREBASE LEADERBOARD ============
 async function pushToLeaderboard() {
   if (!window._firebaseReady) return;
@@ -1770,21 +1768,16 @@ function getPlayerId() {
 // ============ GOOGLE AUTH + NICKNAME ============
 
 // Главная функция входа
-window.handleGoogleSignIn = async function() {
-  try {
-    // На мобильных используем redirect, на десктопе popup
-    if (/iPhone|iPad|iPod/i.test(navigator.userAgent)) {
-      await window.signInWithRedirect(auth, provider);
-      // Страница перезагрузится — результат поймает getRedirectResult ниже
-    } else {
-      const result = await window.signInWithPopup(auth, provider);
-      return result.user;
-    }
-  } catch(e) {
-    console.warn('Google sign-in error', e);
-    return null;
-  }
+async function handleGoogleSignIn() {
+  const btn = document.getElementById('google-signin-btn');
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ Входим...'; }
 
+  const user = await window.signInWithGoogle();
+  if (!user) {
+    if (btn) { btn.disabled = false; btn.textContent = '🔑 Войти через Google'; }
+    showToast('❌ Ошибка входа');
+    return;
+  }
 
   window._firebaseUID = user.uid;
 
