@@ -86,6 +86,7 @@ getDoc(doc(db, 'config', 'levels')).then(snap => {
   });
 
   window._db           = db;
+  window._firestore = { doc, setDoc, getDoc, getDocs, collection, query, orderBy, where, limit };
   window._auth         = auth;
   window._fsDoc        = doc;
   window._fsSetDoc     = setDoc;
@@ -1280,22 +1281,20 @@ async function saveEditorData() {
   });
 
   // ☁️ Сохраняем в Firestore
+// Сохраняем в Firestore
 try {
-  const db = window.db || await new Promise(resolve => {
-    if (window.db) return resolve(window.db);
-    window.addEventListener('firebase-ready', () => resolve(window.db), { once: true });
-    setTimeout(() => resolve(window.db), 3000); // fallback 3 сек
+  const db = window.db;
+  if (!db) { showToast('❌ Firebase не готов, попробуй ещё раз'); renderEditor(); return; }
+  const { doc, setDoc } = window._firestore;
+  await setDoc(doc(db, 'config', 'levels'), {
+    levels: JSON.parse(JSON.stringify(levels))
   });
-  if (!db) { showToast('❌ Firebase недоступен'); renderEditor(); return; }
-  await window.fsSetDoc(
-    window.fsDoc(db, 'config', 'levels'),
-    { levels: JSON.parse(JSON.stringify(levels)) }
-  );
-  showToast('☁️ Сохранено в облако!');
+  showToast('☁️ Сохранено!');
 } catch(e) {
-  console.error('Save error:', e);
+  console.error(e);
   showToast('❌ ' + e.message);
 }
+renderEditor();
 }
 // ============ LEVELS CLOUD ============
 async function loadLevelsFromFirestore() {
