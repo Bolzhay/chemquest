@@ -1334,26 +1334,31 @@ window.addEventListener('cloud-levels-ready', () => {
 });
 
 window.addEventListener('firebase-ready', () => {
+  // Подождать загрузку уровней из облака
   setTimeout(() => {
-    if (window._cloudLevels && window._cloudLevels.length) levels = window._cloudLevels;
+    if (window._cloudLevels && window._cloudLevels.length) {
+      levels = window._cloudLevels;
+      // Если уже на карте — перерисовать
+      if (!document.getElementById('screen-map').classList.contains('hidden')) renderMap();
+    }
   }, 2500);
-  const gBlock  = document.getElementById('block-google');
-  const ngBlock = document.getElementById('block-newgame');
-  const sBlock  = document.getElementById('block-save');
+
+  // Скрыть кнопку Google
+  const gBlock = document.getElementById('block-google');
   if (gBlock) gBlock.style.display = 'none';
+
+  // Если есть сохранение — загрузить и сразу войти
   const saveRaw = localStorage.getItem('chemquest_v1_save');
   if (saveRaw) {
     try {
-      const save = JSON.parse(saveRaw);
-      if (sBlock) {
-        sBlock.style.display = 'flex';
-        const el = id => document.getElementById(id);
-        if (el('save-name'))  el('save-name').textContent  = save.playerName || '';
-        if (el('save-stats')) el('save-stats').textContent = 'XP: '+(save.playerXP||0)+'  |  Ур. '+(save.playerLevel||1);
-        if (el('save-date'))  el('save-date').textContent  = save.lastSaved ? new Date(save.lastSaved).toLocaleDateString('ru') : '';
-      } else if (ngBlock) { ngBlock.style.display = 'flex'; }
-    } catch(e) { if (ngBlock) ngBlock.style.display = 'flex'; }
-  } else { if (ngBlock) ngBlock.style.display = 'flex'; }
+      loadSave(); // ← загружает данные и переходит на screen-title
+      return;
+    } catch(e) { console.warn('loadSave error:', e); }
+  }
+
+  // Нет сохранения — показать форму ввода имени
+  const ngBlock = document.getElementById('block-newgame');
+  if (ngBlock) ngBlock.style.display = 'flex';
 });
 
 showScreen('start');
