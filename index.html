@@ -47,22 +47,12 @@
     if (user) {
       window._firebaseUID   = user.uid;
       window._firebaseReady = true;
-      getDoc(doc(db, 'config', 'levels')).then(snap => {
-        if (snap.exists()) {
-          const d = snap.data();
-          if (d.levels && Array.isArray(d.levels) && d.levels.length > 0) {
-            window._cloudLevels = d.levels;
-            window.dispatchEvent(new Event('cloud-levels-ready'));
-          }
-        }
-      }).catch(e => console.warn('Cloud levels:', e));
+      getDoc(doc(db,'config','levels')).then(snap=>{
+        if(snap.exists()){const d=snap.data();if(d.levels&&d.levels.length){window._cloudLevels=d.levels;window.dispatchEvent(new Event('cloud-levels-ready'));}}
+      }).catch(e=>console.warn('Cloud levels:',e));
       window.dispatchEvent(new Event('firebase-ready'));
     } else {
       window._firebaseReady = false;
-      try {
-        document.getElementById('block-google').style.display = 'flex';
-        document.getElementById('block-newgame').style.display = 'none';
-      } catch(ex){}
     }
   });
 
@@ -1256,16 +1246,10 @@ async function saveEditorData(){
   document.querySelectorAll('.correct-select').forEach(sel=>{
     levels[parseInt(sel.dataset.level)].questions[parseInt(sel.dataset.q)].correct=parseInt(sel.value);
   });
-  try {
-    await window._fsSetDoc(
-      window._fsDoc(window._db, 'config', 'levels'),
-      { levels: JSON.parse(JSON.stringify(levels)) }
-    );
+  try{
+    await window._fsSetDoc(window._fsDoc(window._db,'config','levels'),{levels:JSON.parse(JSON.stringify(levels))});
     showToast('☁️ Сохранено в облако!');
-  } catch(e) {
-    console.error('Save error:', e);
-    showToast('❌ ' + e.message);
-  }
+  }catch(e){console.error('Save:',e);showToast('❌ '+e.message);}
   renderEditor();
 }
 
@@ -1703,19 +1687,21 @@ document.addEventListener('keydown', e => {
 });
 
 // 5 кликов по логотипу (для планшета)
-document.addEventListener('DOMContentLoaded', () => {
-  const logo = document.querySelector('.game-logo');
-  if (!logo) return;
-  logo.addEventListener('click', () => {
-    _logoClicks++;
-    clearTimeout(_logoTimer);
-    _logoTimer = setTimeout(() => _logoClicks = 0, 2500);
-    if (_logoClicks >= 5) {
-      _logoClicks = 0;
-      openPwdModal();
-    }
+function _bindLogoClicks(){
+  document.querySelectorAll('.game-logo').forEach(logo=>{
+    logo.addEventListener('click',()=>{
+      _logoClicks++;
+      clearTimeout(_logoTimer);
+      _logoTimer=setTimeout(()=>_logoClicks=0,2500);
+      if(_logoClicks>=5){_logoClicks=0;openPwdModal();}
+    });
   });
-});
+}
+if(document.readyState==='loading'){
+  document.addEventListener('DOMContentLoaded',_bindLogoClicks);
+}else{
+  _bindLogoClicks();
+}
 // ============ FIREBASE LEADERBOARD ============
 async function pushToLeaderboard() {
   if (!window._firebaseReady) return;
