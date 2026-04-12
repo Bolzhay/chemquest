@@ -574,8 +574,6 @@ body::before {
     <button class="btn btn-secondary" onclick="showScreen('map')">&#128506; КАРТА УРОВНЕЙ</button>
     <button class="btn btn-ghost" id="music-toggle-btn" onclick="toggleMusic()" style="font-size:var(--text-xs);">&#127925; МУЗЫКА: ВКЛ</button>
     <button class="btn btn-secondary" onclick="showScreen('leaders');loadLeaderboard();">🏆 ЛИДЕРЫ</button>
-    <button class="btn btn-ghost" onclick="openPwdModal()" style="font-size:var(--text-xs);opacity:0.25;margin-top:var(--space-2)">🔐</button>
-  </div>
 </div>
 
 
@@ -1328,6 +1326,49 @@ function autoSave() {
   }));
   pushToLeaderboard();
 }
+window.addEventListener('cloud-levels-ready', () => {
+  if (window._cloudLevels && window._cloudLevels.length) {
+    levels = window._cloudLevels;
+    const active = document.querySelector('.screen:not(.hidden)');
+    if (active && active.id === 'screen-map') renderMap();
+    if (active && active.id === 'screen-editor') renderEditor();
+  }
+});
+
+window.addEventListener('firebase-ready', () => {
+  setTimeout(() => {
+    if (window._cloudLevels && window._cloudLevels.length) {
+      levels = window._cloudLevels;
+    }
+  }, 2000);
+
+  // Автовход — скрыть Google кнопку и показать форму
+  const saveRaw = localStorage.getItem('chemquest_v1_save');
+  const blockGoogle  = document.getElementById('block-google');
+  const blockNewgame = document.getElementById('block-newgame');
+  const blockSave    = document.getElementById('block-save');
+
+  if (blockGoogle)  blockGoogle.style.display  = 'none';
+
+  if (saveRaw) {
+    try {
+      const save = JSON.parse(saveRaw);
+      if (blockSave) {
+        blockSave.style.display = 'flex';
+        const nameEl  = document.getElementById('save-name');
+        const statsEl = document.getElementById('save-stats');
+        const dateEl  = document.getElementById('save-date');
+        if (nameEl)  nameEl.textContent  = save.playerName || '';
+        if (statsEl) statsEl.textContent = `XP: ${save.playerXP || 0} | Уровень: ${save.playerLevel || 1}`;
+        if (dateEl)  dateEl.textContent  = save.lastSaved ? new Date(save.lastSaved).toLocaleDateString('ru') : '';
+      }
+    } catch(e) {
+      if (blockNewgame) blockNewgame.style.display = 'flex';
+    }
+  } else {
+    if (blockNewgame) blockNewgame.style.display = 'flex';
+  }
+});
 showScreen('start');
 
 
