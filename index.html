@@ -53,6 +53,27 @@ window.signInWithGoogle = async function() {
       window._firebaseUID   = user.uid;
       window._firebaseReady = true;
       window.dispatchEvent(new Event('firebase-ready'));
+      getDoc(doc(db, 'config', 'levels')).then(snap => {
+  if (snap.exists()) {
+    const d = snap.data();
+    if (d.levels && d.levels.length > 0) {
+      window._cloudLevels = d.levels;
+      window.dispatchEvent(new Event('cloud-levels-ready'));
+    }
+  }
+}).catch(e => console.warn('Config load:', e));
+        if (window._cloudLevels) {
+    levels = window._cloudLevels; 
+        }
+      // Загрузка уровней из config/levels
+window.fsGetDoc(window.fsDoc(db, 'config', 'levels')).then(snap => {
+  if (snap.exists()) {
+    const data = snap.data();
+    if (data.levels && Array.isArray(data.levels) && data.levels.length > 0) {
+      window._cloudLevels = data.levels;
+    }
+  }
+}).catch(e => console.warn('Config load error:', e));
     } else {
       window._firebaseReady = false;
     }
@@ -821,6 +842,9 @@ let levels = [
     {q:"Лакмус в кислой среде окрашивается в:",answers:["Красный","Синий","Жёлтый","Зелёный"],correct:0}
   ]}
 ];
+window.addEventListener('cloud-levels-ready', () => {
+  if (window._cloudLevels) levels = window._cloudLevels;
+});
 const BASE_DAMAGE=20,COMBO_STEP=5,MAX_DAMAGE=50,ENEMY_DMG=15;
 function calcDamage(c){return c<2?BASE_DAMAGE:Math.min(BASE_DAMAGE+(c-1)*COMBO_STEP,MAX_DAMAGE);}
 function comboTier(c){return c>=7?4:c>=5?3:c>=3?2:c>=2?1:0;}
@@ -1229,29 +1253,42 @@ function addQuestion(li){
   levels[li].questions.push({q:"Введите вопрос...",answers:["Вариант A","Вариант B","Вариант C","Вариант D"],correct:0,explanation:""});
   renderEditor();
 }
-async function saveEditorData(){
-  document.querySelectorAll('.field-input[data-level]').forEach(inp=>{
-    const li=parseInt(inp.dataset.level);
-    const qi=inp.dataset.q!==undefined?parseInt(inp.dataset.q):null;
-    const ai=inp.dataset.a!==undefined?parseInt(inp.dataset.a):null;
-    const f=inp.dataset.field;
-    if(qi!==null&&ai!==null)levels[li].questions[qi].answers[ai]=inp.value;
-    else if(qi!==null&&f==='q')levels[li].questions[qi].q=inp.value;
-    else if(qi!==null&&f==='explanation')levels[li].questions[qi].explanation=inp.value;
-    else if(f==='enemyHP')levels[li].enemyHP=parseInt(inp.value)||80;
-    else if(f)levels[li][f]=inp.value;
+async function saveEditorData() {
+  document.querySelectorAll('.field-input[data-level]').forEach(inp => {
+    const li = parseInt(inp.dataset.level);
+    const qi = inp.dataset.q !== undefined ? parseInt(inp.dataset.q) : null;
+    const ai = inp.dataset.a !== undefined ? parseInt(inp.dataset.a) : null;
+    const f  = inp.dataset.field;
+    if (qi !== null && ai !== null) levels[li].questions[qi].answers[ai] = inp.value;
+    else if (qi !== null && f === 'q') levels[li].questions[qi].q = inp.value;
+    else if (qi !== null && f === 'explanation') levels[li].questions[qi].explanation = inp.value;
+    else if (f === 'enemyHP') levels[li].enemyHP = parseInt(inp.value) || 80;
+    else if (f) levels[li][f] = inp.value;
   });
-  document.querySelectorAll('input[type=checkbox][data-level]').forEach(cb=>{
-    const li=parseInt(cb.dataset.level);
-    if(cb.dataset.field==='isBoss')levels[li].isBoss=cb.checked;
+  document.querySelectorAll('input[type=checkbox][data-level]').forEach(cb => {
+    const li = parseInt(cb.dataset.level);
+    if (cb.dataset.field === 'isBoss') levels[li].isBoss = cb.checked;
   });
-  document.querySelectorAll('.correct-select').forEach(sel=>{
-    levels[parseInt(sel.dataset.level)].questions[parseInt(sel.dataset.q)].correct=parseInt(sel.value);
+  document.querySelectorAll('.correct-select').forEach(sel => {
+    levels[parseInt(sel.dataset.level)].questions[parseInt(sel.dataset.q)].correct = parseInt(sel.value);
   });
-  showToast('⏳ Сохраняем...');
-const ok = await saveLevelsToFirestore();
-showToast(ok ? '☁️ Сохранено в облако!' : '⚠️ Ошибка сохранения');
-renderEditor();
+
+  // ☁️ Сохраняем в Firestore
+  if (window.firebaseReady) {
+    try {
+      await window.fsSetDoc(
+        window.fsDoc(window.db, 'config', 'levels'),
+        { levels: JSON.parse(JSON.stringify(levels)) }
+      );
+      showToast('☁️ Сохранено в облако!');
+    } catch(e) {
+      console.error('Save error:', e);
+      showToast('❌ Ошибка: ' + e.message);
+    }
+  } else {
+    showToast('⚠️ Войди через Google чтобы сохранить');
+  }
+  renderEditor();
 }
 // ============ LEVELS CLOUD ============
 async function loadLevelsFromFirestore() {
