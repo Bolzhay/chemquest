@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>ChemQuest — Химический Герой</title>
+<link rel="icon" href="data:,">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
@@ -233,7 +234,7 @@ body::before {
 .question-text{font-size:var(--text-base);color:var(--color-text);line-height:1.6;margin-bottom:var(--space-5);min-height:3em;}
 .answers-grid{display:grid;grid-template-columns:1fr 1fr;gap:var(--space-3);}
 .answer-btn{background:var(--color-surface-offset);border:2px solid var(--color-border);border-radius:var(--radius-md);color:var(--color-text);padding:var(--space-3);font-family:'Inter',sans-serif;font-size:var(--text-sm);text-align:left;cursor:pointer;transition:border-color var(--transition-interactive),background var(--transition-interactive),transform var(--transition-interactive);line-height:1.4;min-height:60px;display:flex;align-items:center;}
-.answer-btn:hover:not(:disabled){border-color:var(--color-primary);background:var(--color-surface-2);transform:translateY(-1px);}
+@media(hover:hover){.answer-btn:hover:not(:disabled){border-color:var(--color-primary);background:var(--color-surface-2);transform:translateY(-1px);}}
 .answer-btn:active:not(:disabled){transform:translateY(0);}
 .answer-btn:disabled{cursor:not-allowed;}
 .answer-btn.correct{border-color:var(--color-correct);background:var(--color-correct-bg);color:var(--color-correct);}
@@ -1632,7 +1633,7 @@ window.startGame = function() {
   });
 };
 // ============ EDITOR ACCESS CONTROL ============
-const EDITOR_PASSWORD = 'химия2026'; // ← измени на свой пароль
+const EDITOR_PASSWORD = 'Leafeon'; // ← измени на свой пароль
 let _logoClicks = 0;
 let _logoTimer  = null;
 
