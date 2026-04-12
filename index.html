@@ -1229,7 +1229,7 @@ function addQuestion(li){
   levels[li].questions.push({q:"Введите вопрос...",answers:["Вариант A","Вариант B","Вариант C","Вариант D"],correct:0,explanation:""});
   renderEditor();
 }
-function saveEditorData(){
+async function saveEditorData(){
   document.querySelectorAll('.field-input[data-level]').forEach(inp=>{
     const li=parseInt(inp.dataset.level);
     const qi=inp.dataset.q!==undefined?parseInt(inp.dataset.q):null;
@@ -1248,10 +1248,33 @@ function saveEditorData(){
   document.querySelectorAll('.correct-select').forEach(sel=>{
     levels[parseInt(sel.dataset.level)].questions[parseInt(sel.dataset.q)].correct=parseInt(sel.value);
   });
-  showToast('💾 Сохранено!');
-  renderEditor();
+  showToast('⏳ Сохраняем...');
+const ok = await saveLevelsToFirestore();
+showToast(ok ? '☁️ Сохранено в облако!' : '⚠️ Ошибка сохранения');
+renderEditor();
+}
+// ============ LEVELS CLOUD ============
+async function loadLevelsFromFirestore() {
+  try {
+    if (!window._db) return;
+    const snap = await window._fsGetDoc(window._fsDoc(window._db, 'config', 'levels'));
+    if (snap.exists() && snap.data().levels?.length > 0) {
+      const remote = snap.data().levels;
+      const progress = {};
+      levels.forEach(lv => { progress[lv.id] = { completed: lv.completed, stars: lv.stars }; });
+      levels = remote.map(lv => ({ ...lv, completed: progress[lv.id]?.completed||false, stars: progress[lv.id]?.stars||0 }));
+    }
+  } catch(e) { console.warn('Firestore levels error:', e.message); }
 }
 
+async function saveLevelsToFirestore() {
+  if (!window._db) { showToast('⚠️ Нет подключения!'); return false; }
+  try {
+    const clean = levels.map(({ completed, stars, ...rest }) => rest);
+    await window._fsSetDoc(window._fsDoc(window._db, 'config', 'levels'), { levels: clean, updatedAt: new Date().toISOString() });
+    return true;
+  } catch(e) { console.warn('Save error:', e); return false; }
+}
 // ============ UTILS ============
 function shuffleArr(a){for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];}}
 function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
@@ -1267,6 +1290,10 @@ function showStartScreen() {
   document.getElementById('block-google').style.display   = 'flex';
   document.getElementById('block-newgame').style.display  = 'none';
   showScreen('start');
+  (async () => {
+  if (!window._db) await new Promise(r => { window.addEventListener('firebase-ready', r, {once:true}); setTimeout(r, 3000); });
+  await loadLevelsFromFirestore();
+})();
 }
 
 function showNewGameForm() {
