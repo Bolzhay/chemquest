@@ -574,6 +574,7 @@ body::before {
     <button class="btn btn-secondary" onclick="showScreen('map')">&#128506; КАРТА УРОВНЕЙ</button>
     <button class="btn btn-ghost" id="music-toggle-btn" onclick="toggleMusic()" style="font-size:var(--text-xs);">&#127925; МУЗЫКА: ВКЛ</button>
     <button class="btn btn-secondary" onclick="showScreen('leaders');loadLeaderboard();">🏆 ЛИДЕРЫ</button>
+    <button class="btn btn-ghost" onclick="openPwdModal()" style="font-size:var(--text-xs);opacity:0.25;margin-top:var(--space-2)">🔐</button>
   </div>
 </div>
 
@@ -1328,7 +1329,7 @@ function autoSave() {
   pushToLeaderboard();
 }
 showScreen('start');
-initStartScreen();
+
 
 // ============ 8-BIT MUSIC ENGINE ============
 let audioCtx = null;
