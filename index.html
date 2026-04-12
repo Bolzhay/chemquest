@@ -29,7 +29,7 @@
   const app      = initializeApp(firebaseConfig);
   const db       = getFirestore(app);
   const auth     = getAuth(app);
-  setPersistence(auth, browserLocalPersistence).catch(e => console.warn('Persistence:', e));
+  setPersistence(auth, browserLocalPersistence).catch(()=>{});
   const provider = new GoogleAuthProvider();
 
   // Глобальный вход через Google
@@ -49,7 +49,7 @@
       window._firebaseReady = true;
       getDoc(doc(db,'config','levels')).then(snap=>{
         if(snap.exists()){const d=snap.data();if(d.levels&&d.levels.length){window._cloudLevels=d.levels;window.dispatchEvent(new Event('cloud-levels-ready'));}}
-      }).catch(e=>console.warn('Cloud levels:',e));
+      }).catch(()=>{});
       window.dispatchEvent(new Event('firebase-ready'));
     } else {
       window._firebaseReady = false;
@@ -574,6 +574,7 @@ body::before {
     <button class="btn btn-secondary" onclick="showScreen('map')">&#128506; КАРТА УРОВНЕЙ</button>
     <button class="btn btn-ghost" id="music-toggle-btn" onclick="toggleMusic()" style="font-size:var(--text-xs);">&#127925; МУЗЫКА: ВКЛ</button>
     <button class="btn btn-secondary" onclick="showScreen('leaders');loadLeaderboard();">🏆 ЛИДЕРЫ</button>
+  </div>
 </div>
 
 
@@ -1248,7 +1249,7 @@ async function saveEditorData(){
   try{
     await window._fsSetDoc(window._fsDoc(window._db,'config','levels'),{levels:JSON.parse(JSON.stringify(levels))});
     showToast('☁️ Сохранено в облако!');
-  }catch(e){console.error('Save:',e);showToast('❌ '+e.message);}
+  }catch(e){showToast('❌ '+e.message);}
   renderEditor();
 }
 
@@ -1329,48 +1330,33 @@ function autoSave() {
 window.addEventListener('cloud-levels-ready', () => {
   if (window._cloudLevels && window._cloudLevels.length) {
     levels = window._cloudLevels;
-    const active = document.querySelector('.screen:not(.hidden)');
-    if (active && active.id === 'screen-map') renderMap();
-    if (active && active.id === 'screen-editor') renderEditor();
   }
 });
 
 window.addEventListener('firebase-ready', () => {
   setTimeout(() => {
-    if (window._cloudLevels && window._cloudLevels.length) {
-      levels = window._cloudLevels;
-    }
-  }, 2000);
-
-  // Автовход — скрыть Google кнопку и показать форму
+    if (window._cloudLevels && window._cloudLevels.length) levels = window._cloudLevels;
+  }, 2500);
+  const gBlock  = document.getElementById('block-google');
+  const ngBlock = document.getElementById('block-newgame');
+  const sBlock  = document.getElementById('block-save');
+  if (gBlock) gBlock.style.display = 'none';
   const saveRaw = localStorage.getItem('chemquest_v1_save');
-  const blockGoogle  = document.getElementById('block-google');
-  const blockNewgame = document.getElementById('block-newgame');
-  const blockSave    = document.getElementById('block-save');
-
-  if (blockGoogle)  blockGoogle.style.display  = 'none';
-
   if (saveRaw) {
     try {
       const save = JSON.parse(saveRaw);
-      if (blockSave) {
-        blockSave.style.display = 'flex';
-        const nameEl  = document.getElementById('save-name');
-        const statsEl = document.getElementById('save-stats');
-        const dateEl  = document.getElementById('save-date');
-        if (nameEl)  nameEl.textContent  = save.playerName || '';
-        if (statsEl) statsEl.textContent = `XP: ${save.playerXP || 0} | Уровень: ${save.playerLevel || 1}`;
-        if (dateEl)  dateEl.textContent  = save.lastSaved ? new Date(save.lastSaved).toLocaleDateString('ru') : '';
-      }
-    } catch(e) {
-      if (blockNewgame) blockNewgame.style.display = 'flex';
-    }
-  } else {
-    if (blockNewgame) blockNewgame.style.display = 'flex';
-  }
+      if (sBlock) {
+        sBlock.style.display = 'flex';
+        const el = id => document.getElementById(id);
+        if (el('save-name'))  el('save-name').textContent  = save.playerName || '';
+        if (el('save-stats')) el('save-stats').textContent = 'XP: '+(save.playerXP||0)+'  |  Ур. '+(save.playerLevel||1);
+        if (el('save-date'))  el('save-date').textContent  = save.lastSaved ? new Date(save.lastSaved).toLocaleDateString('ru') : '';
+      } else if (ngBlock) { ngBlock.style.display = 'flex'; }
+    } catch(e) { if (ngBlock) ngBlock.style.display = 'flex'; }
+  } else { if (ngBlock) ngBlock.style.display = 'flex'; }
 });
-showScreen('start');
 
+showScreen('start');
 
 // ============ 8-BIT MUSIC ENGINE ============
 let audioCtx = null;
@@ -1729,21 +1715,19 @@ document.addEventListener('keydown', e => {
 });
 
 // 5 кликов по логотипу (для планшета)
-function _bindLogoClicks(){
-  document.querySelectorAll('.game-logo').forEach(logo=>{
-    logo.addEventListener('click',()=>{
-      _logoClicks++;
-      clearTimeout(_logoTimer);
-      _logoTimer=setTimeout(()=>_logoClicks=0,2500);
-      if(_logoClicks>=5){_logoClicks=0;openPwdModal();}
-    });
+document.addEventListener('DOMContentLoaded', () => {
+  const logo = document.querySelector('.game-logo');
+  if (!logo) return;
+  logo.addEventListener('click', () => {
+    _logoClicks++;
+    clearTimeout(_logoTimer);
+    _logoTimer = setTimeout(() => _logoClicks = 0, 2500);
+    if (_logoClicks >= 5) {
+      _logoClicks = 0;
+      openPwdModal();
+    }
   });
-}
-if(document.readyState==='loading'){
-  document.addEventListener('DOMContentLoaded',_bindLogoClicks);
-}else{
-  _bindLogoClicks();
-}
+});
 // ============ FIREBASE LEADERBOARD ============
 async function pushToLeaderboard() {
   if (!window._firebaseReady) return;
