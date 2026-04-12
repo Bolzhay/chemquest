@@ -13,7 +13,7 @@
   import { getFirestore, doc, setDoc, getDoc, getDocs,
            collection, query, orderBy, where, limit }
     from 'https://www.gstatic.com/firebasejs/10.11.0/firebase-firestore.js';
-  import { getAuth, signInWithPopup, GoogleAuthProvider, onAuthStateChanged }
+  import { getAuth, signInWithPopup, signInWithRedirect, getRedirectResult, GoogleAuthProvider, onAuthStateChanged }
     from 'https://www.gstatic.com/firebasejs/10.11.0/firebase-auth.js';
 
   const firebaseConfig = {
@@ -31,11 +31,17 @@
   const provider = new GoogleAuthProvider();
 
   // Глобальный вход через Google
-  window.signInWithGoogle = async function() {
+window.signInWithGoogle = async function() {
     try {
       const result = await signInWithPopup(auth, provider);
       return result.user;
     } catch(e) {
+      if (e.code === 'auth/popup-blocked' ||
+          e.code === 'auth/popup-closed-by-user' ||
+          e.message?.includes('Cross-Origin')) {
+        await signInWithRedirect(auth, provider);
+        return null;
+      }
       console.warn('Google sign-in error:', e);
       return null;
     }
@@ -1320,7 +1326,6 @@ function autoSave() {
   pushToLeaderboard();
 }
 showScreen('start');
-initStartScreen();
 
 // ============ 8-BIT MUSIC ENGINE ============
 let audioCtx = null;
