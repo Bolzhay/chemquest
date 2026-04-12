@@ -4,7 +4,6 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>ChemQuest — Химический Герой</title>
-<link rel="icon" href="data:,">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
@@ -14,7 +13,8 @@
   import { getFirestore, doc, setDoc, getDoc, getDocs,
            collection, query, orderBy, where, limit }
     from 'https://www.gstatic.com/firebasejs/10.11.0/firebase-firestore.js';
-  import { getAuth, signInWithPopup, signInWithRedirect, getRedirectResult, GoogleAuthProvider, onAuthStateChanged, browserLocalPersistence, setPersistence  }
+  import { getAuth, signInWithPopup, GoogleAuthProvider, onAuthStateChanged,
+           browserLocalPersistence, setPersistence }
     from 'https://www.gstatic.com/firebasejs/10.11.0/firebase-auth.js';
 
   const firebaseConfig = {
@@ -29,21 +29,15 @@
   const app      = initializeApp(firebaseConfig);
   const db       = getFirestore(app);
   const auth     = getAuth(app);
-  setPersistence(auth, browserLocalPersistence);
+  setPersistence(auth, browserLocalPersistence).catch(e => console.warn('Persistence error:', e));
   const provider = new GoogleAuthProvider();
 
   // Глобальный вход через Google
-window.signInWithGoogle = async function() {
+  window.signInWithGoogle = async function() {
     try {
       const result = await signInWithPopup(auth, provider);
       return result.user;
     } catch(e) {
-      if (e.code === 'auth/popup-blocked' ||
-          e.code === 'auth/popup-closed-by-user' ||
-          e.message?.includes('Cross-Origin')) {
-        await signInWithRedirect(auth, provider);
-        return null;
-      }
       console.warn('Google sign-in error:', e);
       return null;
     }
@@ -53,40 +47,23 @@ window.signInWithGoogle = async function() {
     if (user) {
       window._firebaseUID   = user.uid;
       window._firebaseReady = true;
-      window.dispatchEvent(new Event('firebase-ready'));
+      // Загружаем уровни из Firestore при входе
       getDoc(doc(db, 'config', 'levels')).then(snap => {
-  if (snap.exists()) {
-    const d = snap.data();
-    if (d.levels && d.levels.length > 0) {
-      window._cloudLevels = d.levels;
-      window.dispatchEvent(new Event('cloud-levels-ready'));
-    }
-  }
-}).catch(e => console.warn('Config load:', e));
-        if (window._cloudLevels) {
-    levels = window._cloudLevels; 
+        if (snap.exists()) {
+          const d = snap.data();
+          if (d.levels && Array.isArray(d.levels) && d.levels.length > 0) {
+            window._cloudLevels = d.levels;
+            window.dispatchEvent(new Event('cloud-levels-ready'));
+          }
         }
-      // Загрузка уровней из config/levels
-// Загрузка уровней из config/levels
-getDoc(doc(db, 'config', 'levels')).then(snap => {
-  if (snap.exists()) {
-    const data = snap.data();
-    if (data.levels && Array.isArray(data.levels) && data.levels.length > 0) {
-      window._cloudLevels = data.levels;
-      window.dispatchEvent(new Event('cloud-levels-ready'));
-    }
-  }
-}).catch(e => console.warn('Config load error:', e));
+      }).catch(e => console.warn('Cloud levels load error:', e));
+      window.dispatchEvent(new Event('firebase-ready'));
     } else {
-  window.firebaseReady = false;
-  // Показываем экран входа только если Firebase точно проверил сессию
-  document.getElementById('block-google').style.display = 'flex';
-  document.getElementById('block-newgame').style.display = 'none';
-}
+      window._firebaseReady = false;
+    }
   });
 
   window._db           = db;
-  window._firestore = { doc, setDoc, getDoc, getDocs, collection, query, orderBy, where, limit };
   window._auth         = auth;
   window._fsDoc        = doc;
   window._fsSetDoc     = setDoc;
@@ -262,7 +239,7 @@ body::before {
 .question-text{font-size:var(--text-base);color:var(--color-text);line-height:1.6;margin-bottom:var(--space-5);min-height:3em;}
 .answers-grid{display:grid;grid-template-columns:1fr 1fr;gap:var(--space-3);}
 .answer-btn{background:var(--color-surface-offset);border:2px solid var(--color-border);border-radius:var(--radius-md);color:var(--color-text);padding:var(--space-3);font-family:'Inter',sans-serif;font-size:var(--text-sm);text-align:left;cursor:pointer;transition:border-color var(--transition-interactive),background var(--transition-interactive),transform var(--transition-interactive);line-height:1.4;min-height:60px;display:flex;align-items:center;}
-@media(hover:hover){.answer-btn:hover:not(:disabled){border-color:var(--color-primary);background:var(--color-surface-2);transform:translateY(-1px);}}
+.answer-btn:hover:not(:disabled){border-color:var(--color-primary);background:var(--color-surface-2);transform:translateY(-1px);}
 .answer-btn:active:not(:disabled){transform:translateY(0);}
 .answer-btn:disabled{cursor:not-allowed;}
 .answer-btn.correct{border-color:var(--color-correct);background:var(--color-correct-bg);color:var(--color-correct);}
@@ -849,9 +826,6 @@ let levels = [
     {q:"Лакмус в кислой среде окрашивается в:",answers:["Красный","Синий","Жёлтый","Зелёный"],correct:0}
   ]}
 ];
-window.addEventListener('cloud-levels-ready', () => {
-  if (window._cloudLevels) levels = window._cloudLevels;
-});
 const BASE_DAMAGE=20,COMBO_STEP=5,MAX_DAMAGE=50,ENEMY_DMG=15;
 function calcDamage(c){return c<2?BASE_DAMAGE:Math.min(BASE_DAMAGE+(c-1)*COMBO_STEP,MAX_DAMAGE);}
 function comboTier(c){return c>=7?4:c>=5?3:c>=3?2:c>=2?1:0;}
@@ -1260,64 +1234,41 @@ function addQuestion(li){
   levels[li].questions.push({q:"Введите вопрос...",answers:["Вариант A","Вариант B","Вариант C","Вариант D"],correct:0,explanation:""});
   renderEditor();
 }
-async function saveEditorData() {
-  document.querySelectorAll('.field-input[data-level]').forEach(inp => {
-    const li = parseInt(inp.dataset.level);
-    const qi = inp.dataset.q !== undefined ? parseInt(inp.dataset.q) : null;
-    const ai = inp.dataset.a !== undefined ? parseInt(inp.dataset.a) : null;
-    const f  = inp.dataset.field;
-    if (qi !== null && ai !== null) levels[li].questions[qi].answers[ai] = inp.value;
-    else if (qi !== null && f === 'q') levels[li].questions[qi].q = inp.value;
-    else if (qi !== null && f === 'explanation') levels[li].questions[qi].explanation = inp.value;
-    else if (f === 'enemyHP') levels[li].enemyHP = parseInt(inp.value) || 80;
-    else if (f) levels[li][f] = inp.value;
+async function saveEditorData(){
+  document.querySelectorAll('.field-input[data-level]').forEach(inp=>{
+    const li=parseInt(inp.dataset.level);
+    const qi=inp.dataset.q!==undefined?parseInt(inp.dataset.q):null;
+    const ai=inp.dataset.a!==undefined?parseInt(inp.dataset.a):null;
+    const f=inp.dataset.field;
+    if(qi!==null&&ai!==null)levels[li].questions[qi].answers[ai]=inp.value;
+    else if(qi!==null&&f==='q')levels[li].questions[qi].q=inp.value;
+    else if(qi!==null&&f==='explanation')levels[li].questions[qi].explanation=inp.value;
+    else if(f==='enemyHP')levels[li].enemyHP=parseInt(inp.value)||80;
+    else if(f)levels[li][f]=inp.value;
   });
-  document.querySelectorAll('input[type=checkbox][data-level]').forEach(cb => {
-    const li = parseInt(cb.dataset.level);
-    if (cb.dataset.field === 'isBoss') levels[li].isBoss = cb.checked;
+  document.querySelectorAll('input[type=checkbox][data-level]').forEach(cb=>{
+    const li=parseInt(cb.dataset.level);
+    if(cb.dataset.field==='isBoss')levels[li].isBoss=cb.checked;
   });
-  document.querySelectorAll('.correct-select').forEach(sel => {
-    levels[parseInt(sel.dataset.level)].questions[parseInt(sel.dataset.q)].correct = parseInt(sel.value);
+  document.querySelectorAll('.correct-select').forEach(sel=>{
+    levels[parseInt(sel.dataset.level)].questions[parseInt(sel.dataset.q)].correct=parseInt(sel.value);
   });
-
-  // ☁️ Сохраняем в Firestore
-// Сохраняем в Firestore
-try {
-  const db = window.db;
-  if (!db) { showToast('❌ Firebase не готов, попробуй ещё раз'); renderEditor(); return; }
-  const { doc, setDoc } = window._firestore;
-  await setDoc(doc(db, 'config', 'levels'), {
-    levels: JSON.parse(JSON.stringify(levels))
-  });
-  showToast('☁️ Сохранено!');
-} catch(e) {
-  console.error(e);
-  showToast('❌ ' + e.message);
-}
-renderEditor();
-}
-// ============ LEVELS CLOUD ============
-async function loadLevelsFromFirestore() {
+  // Сохранение в Firestore
+  const db = window._db;
+  if (!db) { showToast('❌ Firebase не подключён'); renderEditor(); return; }
   try {
-    if (!window._db) return;
-    const snap = await window._fsGetDoc(window._fsDoc(window._db, 'config', 'levels'));
-    if (snap.exists() && snap.data().levels?.length > 0) {
-      const remote = snap.data().levels;
-      const progress = {};
-      levels.forEach(lv => { progress[lv.id] = { completed: lv.completed, stars: lv.stars }; });
-      levels = remote.map(lv => ({ ...lv, completed: progress[lv.id]?.completed||false, stars: progress[lv.id]?.stars||0 }));
-    }
-  } catch(e) { console.warn('Firestore levels error:', e.message); }
+    await window._fsSetDoc(
+      window._fsDoc(db, 'config', 'levels'),
+      { levels: JSON.parse(JSON.stringify(levels)) }
+    );
+    showToast('☁️ Сохранено в облако!');
+  } catch(e) {
+    console.error('Save error:', e);
+    showToast('❌ ' + e.message);
+  }
+  renderEditor();
 }
 
-async function saveLevelsToFirestore() {
-  if (!window._db) { showToast('⚠️ Нет подключения!'); return false; }
-  try {
-    const clean = levels.map(({ completed, stars, ...rest }) => rest);
-    await window._fsSetDoc(window._fsDoc(window._db, 'config', 'levels'), { levels: clean, updatedAt: new Date().toISOString() });
-    return true;
-  } catch(e) { console.warn('Save error:', e); return false; }
-}
 // ============ UTILS ============
 function shuffleArr(a){for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];}}
 function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
@@ -1333,10 +1284,6 @@ function showStartScreen() {
   document.getElementById('block-google').style.display   = 'flex';
   document.getElementById('block-newgame').style.display  = 'none';
   showScreen('start');
-  (async () => {
-  if (!window._db) await new Promise(r => { window.addEventListener('firebase-ready', r, {once:true}); setTimeout(r, 3000); });
-  await loadLevelsFromFirestore();
-})();
 }
 
 function showNewGameForm() {
@@ -1397,6 +1344,7 @@ function autoSave() {
   pushToLeaderboard();
 }
 showScreen('start');
+initStartScreen();
 
 // ============ 8-BIT MUSIC ENGINE ============
 let audioCtx = null;
@@ -1703,7 +1651,7 @@ window.startGame = function() {
   });
 };
 // ============ EDITOR ACCESS CONTROL ============
-const EDITOR_PASSWORD = 'Leafeon'; // ← измени на свой пароль
+const EDITOR_PASSWORD = 'химия2026'; // ← измени на свой пароль
 let _logoClicks = 0;
 let _logoTimer  = null;
 
