@@ -50,8 +50,6 @@ window.signInWithGoogle = async function() {
   };
 
   onAuthStateChanged(auth, user => {
-    // Прячем кнопку Google пока идёт проверка
-document.getElementById('block-google').style.display = 'none';
     if (user) {
       window._firebaseUID   = user.uid;
       window._firebaseReady = true;
@@ -1282,14 +1280,15 @@ async function saveEditorData() {
   });
 
   // ☁️ Сохраняем в Firestore
-if (!window.db) {
-  showToast('❌ Firebase не подключён');
-  renderEditor();
-  return;
-}
 try {
+  const db = window.db || await new Promise(resolve => {
+    if (window.db) return resolve(window.db);
+    window.addEventListener('firebase-ready', () => resolve(window.db), { once: true });
+    setTimeout(() => resolve(window.db), 3000); // fallback 3 сек
+  });
+  if (!db) { showToast('❌ Firebase недоступен'); renderEditor(); return; }
   await window.fsSetDoc(
-    window.fsDoc(window.db, 'config', 'levels'),
+    window.fsDoc(db, 'config', 'levels'),
     { levels: JSON.parse(JSON.stringify(levels)) }
   );
   showToast('☁️ Сохранено в облако!');
