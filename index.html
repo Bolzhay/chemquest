@@ -14,7 +14,7 @@
   import { getFirestore, doc, setDoc, getDoc, getDocs,
            collection, query, orderBy, where, limit }
     from 'https://www.gstatic.com/firebasejs/10.11.0/firebase-firestore.js';
-  import { getAuth, signInWithPopup, signInWithRedirect, getRedirectResult, GoogleAuthProvider, onAuthStateChanged }
+  import { getAuth, signInWithPopup, signInWithRedirect, getRedirectResult, GoogleAuthProvider, onAuthStateChanged, browserLocalPersistence, setPersistence  }
     from 'https://www.gstatic.com/firebasejs/10.11.0/firebase-auth.js';
 
   const firebaseConfig = {
@@ -29,6 +29,7 @@
   const app      = initializeApp(firebaseConfig);
   const db       = getFirestore(app);
   const auth     = getAuth(app);
+  setPersistence(auth, browserLocalPersistence);
   const provider = new GoogleAuthProvider();
 
   // Глобальный вход через Google
@@ -49,6 +50,8 @@ window.signInWithGoogle = async function() {
   };
 
   onAuthStateChanged(auth, user => {
+    // Прячем кнопку Google пока идёт проверка
+document.getElementById('block-google').style.display = 'none';
     if (user) {
       window._firebaseUID   = user.uid;
       window._firebaseReady = true;
@@ -77,8 +80,11 @@ getDoc(doc(db, 'config', 'levels')).then(snap => {
   }
 }).catch(e => console.warn('Config load error:', e));
     } else {
-      window._firebaseReady = false;
-    }
+  window.firebaseReady = false;
+  // Показываем экран входа только если Firebase точно проверил сессию
+  document.getElementById('block-google').style.display = 'flex';
+  document.getElementById('block-newgame').style.display = 'none';
+}
   });
 
   window._db           = db;
@@ -1276,21 +1282,21 @@ async function saveEditorData() {
   });
 
   // ☁️ Сохраняем в Firestore
-  if (window.firebaseReady) {
-    try {
-      await window.fsSetDoc(
-        window.fsDoc(window.db, 'config', 'levels'),
-        { levels: JSON.parse(JSON.stringify(levels)) }
-      );
-      showToast('☁️ Сохранено в облако!');
-    } catch(e) {
-      console.error('Save error:', e);
-      showToast('❌ Ошибка: ' + e.message);
-    }
-  } else {
-    showToast('⚠️ Войди через Google чтобы сохранить');
-  }
+if (!window.db) {
+  showToast('❌ Firebase не подключён');
   renderEditor();
+  return;
+}
+try {
+  await window.fsSetDoc(
+    window.fsDoc(window.db, 'config', 'levels'),
+    { levels: JSON.parse(JSON.stringify(levels)) }
+  );
+  showToast('☁️ Сохранено в облако!');
+} catch(e) {
+  console.error('Save error:', e);
+  showToast('❌ ' + e.message);
+}
 }
 // ============ LEVELS CLOUD ============
 async function loadLevelsFromFirestore() {
