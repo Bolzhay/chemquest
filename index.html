@@ -66,11 +66,13 @@ window.signInWithGoogle = async function() {
     levels = window._cloudLevels; 
         }
       // Загрузка уровней из config/levels
-window.fsGetDoc(window.fsDoc(db, 'config', 'levels')).then(snap => {
+// Загрузка уровней из config/levels
+getDoc(doc(db, 'config', 'levels')).then(snap => {
   if (snap.exists()) {
     const data = snap.data();
     if (data.levels && Array.isArray(data.levels) && data.levels.length > 0) {
       window._cloudLevels = data.levels;
+      window.dispatchEvent(new Event('cloud-levels-ready'));
     }
   }
 }).catch(e => console.warn('Config load error:', e));
