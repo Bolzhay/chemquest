@@ -29,7 +29,7 @@
   const app      = initializeApp(firebaseConfig);
   const db       = getFirestore(app);
   const auth     = getAuth(app);
-  setPersistence(auth, browserLocalPersistence).catch(e => console.warn('Persistence error:', e));
+  setPersistence(auth, browserLocalPersistence).catch(e => console.warn('Persistence:', e));
   const provider = new GoogleAuthProvider();
 
   // Глобальный вход через Google
@@ -47,7 +47,6 @@
     if (user) {
       window._firebaseUID   = user.uid;
       window._firebaseReady = true;
-      // Загружаем уровни из Firestore при входе
       getDoc(doc(db, 'config', 'levels')).then(snap => {
         if (snap.exists()) {
           const d = snap.data();
@@ -56,10 +55,14 @@
             window.dispatchEvent(new Event('cloud-levels-ready'));
           }
         }
-      }).catch(e => console.warn('Cloud levels load error:', e));
+      }).catch(e => console.warn('Cloud levels:', e));
       window.dispatchEvent(new Event('firebase-ready'));
     } else {
       window._firebaseReady = false;
+      try {
+        document.getElementById('block-google').style.display = 'flex';
+        document.getElementById('block-newgame').style.display = 'none';
+      } catch(ex){}
     }
   });
 
@@ -1253,12 +1256,9 @@ async function saveEditorData(){
   document.querySelectorAll('.correct-select').forEach(sel=>{
     levels[parseInt(sel.dataset.level)].questions[parseInt(sel.dataset.q)].correct=parseInt(sel.value);
   });
-  // Сохранение в Firestore
-  const db = window._db;
-  if (!db) { showToast('❌ Firebase не подключён'); renderEditor(); return; }
   try {
     await window._fsSetDoc(
-      window._fsDoc(db, 'config', 'levels'),
+      window._fsDoc(window._db, 'config', 'levels'),
       { levels: JSON.parse(JSON.stringify(levels)) }
     );
     showToast('☁️ Сохранено в облако!');
