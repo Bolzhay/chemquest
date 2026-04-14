@@ -570,6 +570,7 @@ body::before {
   </div>
   <img src="https://user-gen-media-assets.s3.amazonaws.com/gemini_images/3389c4f8-d2d6-41cc-bc73-94d853e952e4.png" alt="Герой химик" class="hero-art" width="120" height="120" loading="lazy">
   <div class="title-buttons">
+    <button id="btn-continue" class="btn btn-primary" onclick="continueGame()" style="display:none">▶ Продолжить</button>
     <button class="btn btn-primary" onclick="startGame()">&#9654; НАЧАТЬ ИГРУ</button>
     <button class="btn btn-secondary" onclick="showScreen('map')">&#128506; КАРТА УРОВНЕЙ</button>
     <button class="btn btn-ghost" id="music-toggle-btn" onclick="toggleMusic()" style="font-size:var(--text-xs);">&#127925; МУЗЫКА: ВКЛ</button>
@@ -1539,12 +1540,23 @@ function toggleMusic(){
     document.getElementById('music-toggle-btn').textContent='🎵 МУЗЫКА: ВКЛ';
   }
 }
+function continueGame() {
+  showScreen('map');
+}
 
+function updateTitleButtons() {
+  const hasProgress = gameData.playerName && (
+    gameData.playerXP > 0 || levels.some(lv => lv.completed)
+  );
+  const btn = document.getElementById('btn-continue');
+  if (btn) btn.style.display = hasProgress ? '' : 'none';
+}
 // Hook music to screen changes
 const _origShowScreen = showScreen;
 window.showScreen = function(name){
   _origShowScreen(name);
   if(!musicPlaying) return;
+  if (name === 'title') updateTitleButtons();
   if(name==='title') startMusic('title');
   else if(name==='map') startMusic('title');
   else if(name==='result') startMusic('title');
