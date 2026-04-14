@@ -1330,7 +1330,7 @@ if (gameData.battleTotalTime > 0) {
   st.c += gameData.battleCorrect;
   st.t += gameData.battleTotalTime;
   gameData.battleTotalTime = 0;
-  localStorage.setItem('chemquest_stats', JSON.stringify(_st));
+  localStorage.setItem('chemquest_stats', JSON.stringify(st));
 }
   const completedLevels = {};
   levels.forEach(lv => {
