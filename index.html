@@ -13,8 +13,7 @@
   import { getFirestore, doc, setDoc, getDoc, getDocs,
            collection, query, orderBy, where, limit }
     from 'https://www.gstatic.com/firebasejs/10.11.0/firebase-firestore.js';
-  import { getAuth, signInWithPopup, GoogleAuthProvider, onAuthStateChanged,
-           browserLocalPersistence, setPersistence }
+  import { getAuth, signInWithPopup, signInWithRedirect, getRedirectResult, GoogleAuthProvider, onAuthStateChanged }
     from 'https://www.gstatic.com/firebasejs/10.11.0/firebase-auth.js';
 
   const firebaseConfig = {
@@ -29,7 +28,6 @@
   const app      = initializeApp(firebaseConfig);
   const db       = getFirestore(app);
   const auth     = getAuth(app);
-  setPersistence(auth, browserLocalPersistence).catch(()=>{});
   const provider = new GoogleAuthProvider();
 
   // Глобальный вход через Google
@@ -42,14 +40,18 @@
       return null;
     }
   };
+// Ловим результат после редиректа на мобильных
+import { getRedirectResult } from 'https://www.gstatic.com/firebasejs/10.11.0/firebase-auth.js';
 
+getRedirectResult(auth).then(result => {
+  if (result?.user) {
+    console.log('Вошёл через redirect:', result.user.email);
+  }
+}).catch(e => console.warn('Redirect result error:', e));
   onAuthStateChanged(auth, user => {
     if (user) {
       window._firebaseUID   = user.uid;
       window._firebaseReady = true;
-      getDoc(doc(db,'config','levels')).then(snap=>{
-        if(snap.exists()){const d=snap.data();if(d.levels&&d.levels.length){window._cloudLevels=d.levels;window.dispatchEvent(new Event('cloud-levels-ready'));}}
-      }).catch(()=>{});
       window.dispatchEvent(new Event('firebase-ready'));
     } else {
       window._firebaseReady = false;
@@ -570,7 +572,6 @@ body::before {
   </div>
   <img src="https://user-gen-media-assets.s3.amazonaws.com/gemini_images/3389c4f8-d2d6-41cc-bc73-94d853e952e4.png" alt="Герой химик" class="hero-art" width="120" height="120" loading="lazy">
   <div class="title-buttons">
-    <button id="btn-continue" class="btn btn-primary" onclick="continueGame()" style="display:none">▶ Продолжить</button>
     <button class="btn btn-primary" onclick="startGame()">&#9654; НАЧАТЬ ИГРУ</button>
     <button class="btn btn-secondary" onclick="showScreen('map')">&#128506; КАРТА УРОВНЕЙ</button>
     <button class="btn btn-ghost" id="music-toggle-btn" onclick="toggleMusic()" style="font-size:var(--text-xs);">&#127925; МУЗЫКА: ВКЛ</button>
@@ -850,8 +851,6 @@ function showScreen(name){
   document.getElementById('screen-'+name).classList.remove('hidden');
   if(name==='map')renderMap();
   if(name==='editor')renderEditor();
-    if (name === 'title') updateTitleButtons(); // ← добавь эту строку
-
 }
 function startGame(){gameData.currentLevelIndex=0;startLevel(0);}
 
@@ -880,7 +879,6 @@ function startLevel(i){
   const lv=levels[i];
   gameData.currentLevelIndex=i; gameData.currentQuestionIndex=0;
   gameData.battleCorrect=0; gameData.battleWrong=0; gameData.battleXP=0;
-  gameData.battleTotalTime=0;
   gameData.comboCount=0; gameData.maxCombo=0;
   gameData.enemyMaxHP=lv.enemyHP; gameData.enemyHP=lv.enemyHP;
   document.getElementById('battle-level-name').textContent=lv.name;
@@ -916,11 +914,8 @@ function loadQuestion(){
   hideExplanation();
 updateComboBanner();
  startTimer();
- window._qStartTime = Date.now();
 }
 function handleAnswer(btn,chosen,correct){
-  const elapsed = (Date.now() - (window._qStartTime || Date.now())) / 1000;
-gameData.battleTotalTime = (gameData.battleTotalTime || 0) + Math.min(elapsed, 60);
   document.querySelectorAll('.answer-btn').forEach(b=>b.disabled=true);
   stopTimer();
   const lv=levels[gameData.currentLevelIndex];
@@ -989,18 +984,20 @@ function endBattle(won) {
   const lv       = levels[gameData.currentLevelIndex];
   const prevStars = lv.stars;       // звёзды ДО этого боя
   const wasCompleted = lv.completed;
-// ── Расчёт XP ──
-    let xpGain  = 0;
-    let xpLabel = '';
-    let xpClass = '';
+
+  // ── Расчёт XP ──
+  let xpGain  = 0;
+  let xpLabel = '';
+  let xpClass = 'no-xp';
+
   if (won) {
     const total = gameData.battleCorrect + gameData.battleWrong;
     const ratio = total > 0 ? gameData.battleCorrect / total : 0;
     const newStars = ratio >= 0.9 ? 3 : ratio >= 0.6 ? 2 : 1;
+
     lv.completed = true;
     lv.stars = Math.max(prevStars, newStars);
 
-    
     if (!wasCompleted) {
       // Первое прохождение — полный XP
       xpGain  = gameData.battleXP;
@@ -1019,8 +1016,7 @@ function endBattle(won) {
       xpClass = 'no-xp';
     }
 
-    if (!wasCompleted) gameData.playerXP += xpGain;
-
+    gameData.playerXP += xpGain;
     if (gameData.playerXP >= gameData.playerLevel * 100) gameData.playerLevel++;
 
     document.getElementById('result-img').src = 'https://user-gen-media-assets.s3.amazonaws.com/gemini_images/3389c4f8-d2d6-41cc-bc73-94d853e952e4.png';
@@ -1040,8 +1036,7 @@ function endBattle(won) {
     document.getElementById('result-title').textContent = '💀 ПОРАЖЕНИЕ...';
     document.getElementById('result-title').className   = 'result-title defeat';
     document.getElementById('result-stars').textContent = '💔';
-   const xpConsol = Math.floor(gameData.battleXP / 2);
-    xpGain = xpConsol;
+    const xpConsol = Math.floor(gameData.battleXP / 2);
     gameData.playerXP += xpConsol;
     document.getElementById('result-score').textContent = '+' + xpConsol + ' XP (утешительные)';
     document.getElementById('result-score').className   = 'result-score xp-reward no-xp';
@@ -1051,9 +1046,8 @@ function endBattle(won) {
 
   document.getElementById('res-correct').textContent = gameData.battleCorrect;
   document.getElementById('res-wrong').textContent   = gameData.battleWrong;
-  document.getElementById('res-xp').textContent = xpGain;
-  showScreen('result');document.querySelectorAll('#screen-result .btn').forEach(b => b.disabled = false);
-
+  document.getElementById('res-xp').textContent      = gameData.playerXP;
+  showScreen('result');
 }
 function goToNextLevel(){if(gameData.currentLevelIndex<levels.length-1)startLevel(gameData.currentLevelIndex+1);}
 function replayLevel(){startLevel(gameData.currentLevelIndex);}
@@ -1235,7 +1229,7 @@ function addQuestion(li){
   levels[li].questions.push({q:"Введите вопрос...",answers:["Вариант A","Вариант B","Вариант C","Вариант D"],correct:0,explanation:""});
   renderEditor();
 }
-async function saveEditorData(){
+function saveEditorData(){
   document.querySelectorAll('.field-input[data-level]').forEach(inp=>{
     const li=parseInt(inp.dataset.level);
     const qi=inp.dataset.q!==undefined?parseInt(inp.dataset.q):null;
@@ -1254,10 +1248,7 @@ async function saveEditorData(){
   document.querySelectorAll('.correct-select').forEach(sel=>{
     levels[parseInt(sel.dataset.level)].questions[parseInt(sel.dataset.q)].correct=parseInt(sel.value);
   });
-  try{
-    await window._fsSetDoc(window._fsDoc(window._db,'config','levels'),{levels:JSON.parse(JSON.stringify(levels))});
-    showToast('☁️ Сохранено в облако!');
-  }catch(e){showToast('❌ '+e.message);}
+  showToast('💾 Сохранено!');
   renderEditor();
 }
 
@@ -1321,15 +1312,6 @@ function loadSave() {
 }
 
 function autoSave() {
-  // Накапливаем статистику
-const _st = JSON.parse(localStorage.getItem('chemquest_stats') || '{"q":0,"c":0,"t":0}');
-if (gameData.battleTotalTime > 0) {
-  _st.q += (gameData.battleCorrect + gameData.battleWrong);
-  _st.c += gameData.battleCorrect;
-  _st.t += gameData.battleTotalTime;
-  gameData.battleTotalTime = 0;
-  localStorage.setItem('chemquest_stats', JSON.stringify(_st));
-}
   const completedLevels = {};
   levels.forEach(lv => {
     completedLevels[lv.id] = { completed: lv.completed, stars: lv.stars };
@@ -1342,57 +1324,10 @@ if (gameData.battleTotalTime > 0) {
     completedLevels,
     lastSaved:       new Date().toISOString()
   }));
-  saveToLeaderboard();
+  pushToLeaderboard();
 }
-window.addEventListener('cloud-levels-ready', () => {
-  if (window.cloudLevels && window.cloudLevels.length) {
-    // Сохраняем текущий прогресс перед перезаписью структуры
-    const currentProgress = {};
-    levels.forEach(lv => {
-      currentProgress[lv.id] = { completed: lv.completed, stars: lv.stars };
-    });
-
-    levels = window.cloudLevels;
-
-    // Восстанавливаем прогресс (playerLevelData — из handleGoogleSignIn)
-    levels.forEach(lv => {
-      const prog = window.playerLevelData?.[lv.id] ?? currentProgress[lv.id];
-      if (prog) { lv.completed = prog.completed || false; lv.stars = prog.stars || 0; }
-    });
-  }
-  updateTitleButtons();
-  if (!document.getElementById('screen-map').classList.contains('hidden')) renderMap();
-});
-
-window.addEventListener('firebase-ready', () => {
-  // Подождать загрузку уровней из облака
-  setTimeout(() => {
-    if (window._cloudLevels && window._cloudLevels.length) {
-      levels = window._cloudLevels;
-      // Если уже на карте — перерисовать
-      if (!document.getElementById('screen-map').classList.contains('hidden')) renderMap();
-    }
-  }, 2500);
-
-  // Скрыть кнопку Google
-  const gBlock = document.getElementById('block-google');
-  if (gBlock) gBlock.style.display = 'none';
-
-  // Если есть сохранение — загрузить и сразу войти
-  const saveRaw = localStorage.getItem('chemquest_v1_save');
-  if (saveRaw) {
-    try {
-      loadSave(); // ← загружает данные и переходит на screen-title
-      return;
-    } catch(e) { console.warn('loadSave error:', e); }
-  }
-
-  // Нет сохранения — показать форму ввода имени
-  const ngBlock = document.getElementById('block-newgame');
-  if (ngBlock) ngBlock.style.display = 'flex';
-});
-
 showScreen('start');
+initStartScreen();
 
 // ============ 8-BIT MUSIC ENGINE ============
 let audioCtx = null;
@@ -1554,30 +1489,12 @@ function toggleMusic(){
     document.getElementById('music-toggle-btn').textContent='🎵 МУЗЫКА: ВКЛ';
   }
 }
-function continueGame() {
-  for (let i = 0; i < levels.length; i++) {
-    const unlocked = i === 0 || levels[i - 1].completed;
-    if (unlocked && !levels[i].completed) {
-      startLevel(i);
-      return;
-    }
-  }
-  showScreen('map'); // все пройдены — показать карту
-}
 
-function updateTitleButtons() {
-  const hasProgress = gameData.playerName && (
-    gameData.playerXP > 0 || levels.some(lv => lv.completed)
-  );
-  const btn = document.getElementById('btn-continue');
-  if (btn) btn.style.display = hasProgress ? '' : 'none';
-}
 // Hook music to screen changes
 const _origShowScreen = showScreen;
 window.showScreen = function(name){
   _origShowScreen(name);
   if(!musicPlaying) return;
-  if (name === 'title') updateTitleButtons();
   if(name==='title') startMusic('title');
   else if(name==='map') startMusic('title');
   else if(name==='result') startMusic('title');
@@ -1758,7 +1675,7 @@ function checkEditorPassword() {
 
 // Ctrl + Shift + E
 document.addEventListener('keydown', e => {
-  if (e.ctrlKey && e.shiftKey && e.key === 'E') {
+  if (e.ctrlKey && e.shiftKey && (e.key === 'E' || e.key === 'e')) {
     e.preventDefault();
     openPwdModal();
   }
@@ -1769,57 +1686,46 @@ document.addEventListener('keydown', e => {
 });
 
 // 5 кликов по логотипу (для планшета)
-document.addEventListener('DOMContentLoaded', () => {
-  const logo = document.querySelector('.game-logo');
-  if (!logo) return;
-  logo.addEventListener('click', () => {
-    _logoClicks++;
-    clearTimeout(_logoTimer);
-    _logoTimer = setTimeout(() => _logoClicks = 0, 2500);
-    if (_logoClicks >= 5) {
-      _logoClicks = 0;
-      openPwdModal();
-    }
-  });
-});
-async function saveToLeaderboard() {
-  if (!window.firebaseReady || !window.firebaseUID) return;
-  try {
-    const st = JSON.parse(localStorage.getItem('chemqueststats') || '{"q":0,"c":0,"t":0}');
-    const totalStars = levels.reduce((s, lv) => s + (lv.stars || 0), 0);
-    const avgAccuracy = st.q > 0 ? Math.round((st.c / st.q) * 100) : 0;
-    const avgSpeed    = st.q > 0 ? Math.round(st.t / st.q) : 0;
-    const levelData   = {};
-    levels.forEach(lv => {
-      levelData[lv.id] = { completed: lv.completed, stars: lv.stars };
+(function() {
+  const logos = document.querySelectorAll('.game-logo');
+  logos.forEach(logo => {
+    logo.style.cursor = 'pointer';
+    logo.addEventListener('click', () => {
+      _logoClicks++;
+      clearTimeout(_logoTimer);
+      _logoTimer = setTimeout(() => _logoClicks = 0, 2500);
+      if (_logoClicks >= 5) {
+        _logoClicks = 0;
+        openPwdModal();
+      }
     });
-    await window.fsSetDoc(
-      window.fsDoc(window.db, 'leaderboard', window.firebaseUID),
+  });
+})();
+// ============ FIREBASE LEADERBOARD ============
+async function pushToLeaderboard() {
+  if (!window._firebaseReady) return;
+  try {
+    const playerId   = getPlayerId();
+    const totalStars = levels.reduce((acc, lv) => acc + (lv.stars || 0), 0);
+    const completed  = levels.filter(lv => lv.completed).length;
+    await window._fsSetDoc(
+      window._fsDoc(window._db, 'leaderboard', playerId),
       {
-        name: gameData.playerName,
-        xp: gameData.playerXP,
-        level: gameData.playerLevel,
-        stars: totalStars,
-        avgAccuracy,
-        avgSpeed,
-        levelData,
-        updatedAt: new Date().toISOString()
+        name:       gameData.playerName || 'Игрок',
+        xp:         gameData.playerXP   || 0,
+        level:      gameData.playerLevel || 1,
+        stars:      totalStars,
+        completed:  completed,
+        total:      levels.length,
+        lastPlayed: new Date().toISOString()
       }
     );
   } catch(e) {
-    console.warn('saveToLeaderboard error:', e);
+    console.warn('Firebase push error:', e);
   }
 }
-// ============ FIREBASE LEADERBOARD ============
-async function loadLeaderboard(mode='xp') {
-  // Подсвечиваем активную вкладку
-  ['xp','spd','acc'].forEach(t => {
-    const el = document.getElementById('tab-'+t);
-    if (!el) return;
-    el.className = 'btn ' + ((mode==='xp'&&t==='xp')||(mode==='speed'&&t==='spd')||(mode==='acc'&&t==='acc') ? 'btn-primary' : 'btn-secondary');
-    el.style.cssText = 'flex:1;font-size:var(--text-xs);min-height:36px;';
-  });
 
+async function loadLeaderboard() {
   const list = document.getElementById('leaders-list');
   if (!list) return;
   list.innerHTML = '<div style="text-align:center;color:var(--color-text-muted);font-family:\'Press Start 2P\',monospace;font-size:var(--text-xs);padding:var(--space-8)">⏳ Загрузка...</div>';
@@ -1830,16 +1736,11 @@ async function loadLeaderboard(mode='xp') {
   }
 
   try {
-    const col = window._fsCollection(window._db, 'leaderboard');
-    let q;
-    if (mode === 'speed') {
-      q = window._fsQuery(col, window._fsWhere('avgSpeed','>',0), window._fsOrderBy('avgSpeed','asc'), window._fsLimit(10));
-    } else if (mode === 'acc') {
-      q = window._fsQuery(col, window._fsOrderBy('avgAccuracy','desc'), window._fsLimit(10));
-    } else {
-      q = window._fsQuery(col, window._fsOrderBy('xp','desc'), window._fsLimit(50));
-    }
-
+    const q    = window._fsQuery(
+      window._fsCollection(window._db, 'leaderboard'),
+      window._fsOrderBy('xp', 'desc'),
+      window._fsLimit(10)
+    );
     const snap = await window._fsGetDocs(q);
     const myId = getPlayerId();
 
@@ -1850,101 +1751,25 @@ async function loadLeaderboard(mode='xp') {
 
     list.innerHTML = '';
     const medals = ['🥇','🥈','🥉'];
-    const allDocs = snap.docs;
 
-    // Для XP-вкладки: найти позицию текущего игрока и посчитать гэп
-    let myRank = -1;
-    let top10XP = 0;
-    if (mode === 'xp') {
-      allDocs.forEach((d, i) => { if (d.id === myId) myRank = i; });
-      if (allDocs.length >= 10) top10XP = allDocs[9].data().xp || 0;
-    }
-
-    // Рисуем только топ-10 (или всё если меньше)
-    const displayDocs = mode === 'xp' ? allDocs.slice(0, 10) : allDocs;
-
-    displayDocs.forEach((docSnap, i) => {
-      const d = docSnap.data();
+    snap.docs.forEach((docSnap, i) => {
+      const d    = docSnap.data();
       const isMe = docSnap.id === myId;
-      const row = document.createElement('div');
+      const row  = document.createElement('div');
       row.className = 'leader-row' + (isMe ? ' is-me' : '');
-
-      // Основная метрика в зависимости от вкладки
-      let metricHtml = '';
-      if (mode === 'speed') {
-        metricHtml = `<span class="leader-xp">${d.avgSpeed||0}с/q</span>`;
-      } else if (mode === 'acc') {
-        metricHtml = `<span class="leader-xp">${d.avgAccuracy||0}%</span>`;
-      } else {
-        // XP + отставание
-        let gapHtml = '';
-        if (isMe && i > 0) {
-          const xpAbove = (allDocs[i-1]?.data().xp || 0);
-          const gap = xpAbove - (d.xp || 0) + 1;
-          gapHtml = `<span style="font-size:var(--text-xs);color:var(--color-text-muted);display:block;margin-top:2px;">+${gap} XP до ↑</span>`;
-        
-        }
-        metricHtml = `<span class="leader-xp" style="display:flex;flex-direction:column;align-items:flex-end;">${d.xp||0} XP${gapHtml}</span>`;
-      }
-// Игрок ниже топ-10 — показать отдельно внизу
-if (mode === 'xp' && myRank >= 10) {
-  const myDoc = allDocs[myRank];
-  if (myDoc) {
-    const d = myDoc.data();
-    const gap = Math.max(0, top10XP - (d.xp || 0) + 1);
-    const sep = document.createElement('div');
-    sep.style.cssText = 'color:var(--color-text-faint);text-align:center;font-size:var(--text-xs);padding:var(--space-2)';
-    sep.textContent = '· · ·';
-    list.appendChild(sep);
-    const row = document.createElement('div');
-    row.className = 'leader-row is-me';
-    row.innerHTML = `
-      <span class="leader-rank">${myRank + 1}</span>
-      <span class="leader-name">${esc(d.name)} <span style="color:var(--color-primary)">(ты)</span></span>
-      <span class="leader-stars">⭐ ${d.stars || 0}</span>
-      <span class="leader-xp" style="display:flex;flex-direction:column;align-items:flex-end;">
-        ${d.xp || 0} XP
-        <span style="font-size:10px;color:var(--color-gold);display:block;margin-top:2px;">+${gap} XP до топ-10</span>
-      </span>
-    `;
-    list.appendChild(row);
-  }
-}
       row.innerHTML = `
         <span class="leader-rank">${medals[i] || (i + 1)}</span>
         <span class="leader-name">${esc(d.name)}${isMe ? ' <span style="color:var(--color-primary)">(ты)</span>' : ''}</span>
         <span class="leader-stars">⭐ ${d.stars || 0}</span>
-        ${metricHtml}
+        <span class="leader-xp">${d.xp || 0} XP</span>
       `;
       list.appendChild(row);
     });
-
-    // Если игрок ниже 10 — показать его отдельно внизу
-    if (mode === 'xp' && myRank >= 10) {
-      const myDoc = allDocs[myRank];
-      const d = myDoc.data();
-      const gap = top10XP - (d.xp || 0) + 1;
-      const sep = document.createElement('div');
-      sep.style.cssText = 'color:var(--color-text-faint);text-align:center;font-size:var(--text-xs);padding:var(--space-2)';
-      sep.textContent = '· · ·';
-      list.appendChild(sep);
-      const row = document.createElement('div');
-      row.className = 'leader-row is-me';
-      row.innerHTML = `
-        <span class="leader-rank">${myRank + 1}</span>
-        <span class="leader-name">${esc(d.name)} <span style="color:var(--color-primary)">(ты)</span></span>
-        <span class="leader-stars">⭐ ${d.stars || 0}</span>
-        <span class="leader-xp" style="display:flex;flex-direction:column;align-items:flex-end;">${d.xp||0} XP<span style="font-size:var(--text-xs);color:var(--color-gold);margin-top:2px;">+${gap} XP до топ-10</span></span>
-      `;
-      list.appendChild(row);
-    }
-
   } catch(e) {
     list.innerHTML = '<div style="text-align:center;color:var(--color-wrong);font-family:\'Press Start 2P\',monospace;font-size:var(--text-xs);padding:var(--space-8)">⚠ Ошибка загрузки</div>';
-    console.warn('Leaderboard error:', e);
+    console.warn('Firebase load error:', e);
   }
 }
-
 
 function getPlayerId() {
   return window._firebaseUID || localStorage.getItem('chemquest_player_id') || 'anonymous';
@@ -1953,15 +1778,20 @@ function getPlayerId() {
 
 // Главная функция входа
 async function handleGoogleSignIn() {
-  const btn = document.getElementById('google-signin-btn');
-  if (btn) { btn.disabled = true; btn.textContent = '⏳ Входим...'; }
-
-  const user = await window.signInWithGoogle();
-  if (!user) {
-    if (btn) { btn.disabled = false; btn.textContent = '🔑 Войти через Google'; }
-    showToast('❌ Ошибка входа');
-    return;
+  try {
+    // На мобильных используем redirect, на десктопе popup
+    if (/iPhone|iPad|iPod|Android/i.test(navigator.userAgent)) {
+      await signInWithRedirect(auth, provider);
+      // Страница перезагрузится — результат поймает getRedirectResult ниже
+    } else {
+      const result = await signInWithPopup(auth, provider);
+      return result.user;
+    }
+  } catch(e) {
+    console.warn('Google sign-in error', e);
+    return null;
   }
+
 
   window._firebaseUID = user.uid;
 
@@ -1976,10 +1806,8 @@ async function handleGoogleSignIn() {
     gameData.playerXP    = data.xp    || 0;
     gameData.playerLevel = data.level || 1;
     gameData.playerHP    = 100;
-    window._playerLevelData = {};
     levels.forEach(lv => {
       const saved = data.levelData?.[lv.id];
-       window._playerLevelData[lv.id] = saved || { completed: false, stars: 0 };
       if (saved) { lv.completed = saved.completed; lv.stars = saved.stars; }
       else        { lv.completed = false; lv.stars = 0; }
     });
@@ -1990,17 +1818,6 @@ async function handleGoogleSignIn() {
     // Новый игрок — показать форму никнейма
     showNicknameForm();
   }
-}
-function continueGame() {
-  showScreen('map');
-}
-
-function updateTitleButtons() {
-  const hasProgress = levels.some(lv => lv.completed);
-  const btnStart    = document.querySelector('#screen-title .title-buttons .btn-primary[onclick*="startGame"]');
-  const btnContinue = document.getElementById('btn-continue');
-  if (btnStart)    btnStart.style.display    = hasProgress ? 'none' : '';
-  if (btnContinue) btnContinue.style.display = hasProgress ? ''     : 'none';
 }
 
 function showNicknameForm() {
@@ -2022,7 +1839,7 @@ async function startNewGame() {
 
   autoSave();
   document.getElementById('player-name-map').textContent = name;
-  await saveToLeaderboard(); // сразу фиксируем имя в Firebase
+  await pushToLeaderboard(); // сразу фиксируем имя в Firebase
   showStartScreen();
 }
 
@@ -2034,13 +1851,8 @@ function getPlayerId() {
 <div class="screen hidden" id="screen-leaders">
   <div style="width:100%;max-width:500px;display:flex;align-items:center;gap:var(--space-3);padding:var(--space-3) var(--space-4);background:var(--color-surface);border:1px solid var(--color-border);border-radius:var(--radius-lg);">
     <button class="battle-back-btn" onclick="showScreen('title')" aria-label="Назад">&#8592;</button>
-    <span style="font-family:'Press Start 2P',monospace;font-size:var(--text-xs);color:var(--color-primary);flex:1;">🏆 ЛИДЕРЫ</span>
-    <button class="battle-back-btn" onclick="loadLeaderboard()" aria-label="Обновить">&#8635;</button>
-  </div>
-  <div style="width:100%;max-width:500px;display:flex;gap:var(--space-2);">
-    <button id="tab-xp"  class="btn btn-primary"   style="flex:1;font-size:var(--text-xs);min-height:36px;" onclick="loadLeaderboard('xp')">🏆 XP</button>
-    <button id="tab-spd" class="btn btn-secondary" style="flex:1;font-size:var(--text-xs);min-height:36px;" onclick="loadLeaderboard('speed')">⚡ Скорость</button>
-    <button id="tab-acc" class="btn btn-secondary" style="flex:1;font-size:var(--text-xs);min-height:36px;" onclick="loadLeaderboard('acc')">🎯 Точность</button>
+    <span style="font-family:'Press Start 2P',monospace;font-size:var(--text-xs);color:var(--color-primary);flex:1;">🏆 ТАБЛИЦА ЛИДЕРОВ</span>
+    <button class="battle-back-btn" onclick="loadLeaderboard()" aria-label="Обновить" title="Обновить">&#8635;</button>
   </div>
   <div id="leaders-list" style="width:100%;max-width:500px;display:flex;flex-direction:column;gap:var(--space-2);"></div>
 </div>
