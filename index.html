@@ -994,7 +994,6 @@ function endBattle(won) {
     const total = gameData.battleCorrect + gameData.battleWrong;
     const ratio = total > 0 ? gameData.battleCorrect / total : 0;
     const newStars = ratio >= 0.9 ? 3 : ratio >= 0.6 ? 2 : 1;
-const wasCompleted = lv.completed;
     lv.completed = true;
     lv.stars = Math.max(prevStars, newStars);
 
@@ -1021,9 +1020,8 @@ const wasCompleted = lv.completed;
       xpClass = 'no-xp';
     }
 
-    if (!levels[gameData.currentLevelIndex].completed) {
-  gameData.playerXP += xpGain;
-}
+    if (!wasCompleted) gameData.playerXP += xpGain;
+
     if (gameData.playerXP >= gameData.playerLevel * 100) gameData.playerLevel++;
 
     document.getElementById('result-img').src = 'https://user-gen-media-assets.s3.amazonaws.com/gemini_images/3389c4f8-d2d6-41cc-bc73-94d853e952e4.png';
@@ -1053,7 +1051,7 @@ const wasCompleted = lv.completed;
 
   document.getElementById('res-correct').textContent = gameData.battleCorrect;
   document.getElementById('res-wrong').textContent   = gameData.battleWrong;
-  document.getElementById('res-xp').textContent      = gameData.playerXP;
+  document.getElementById('res-xp').textContent = xpGain;
   showScreen('result');document.querySelectorAll('#screen-result .btn').forEach(b => b.disabled = false);
 
 }
@@ -1348,14 +1346,19 @@ if (gameData.battleTotalTime > 0) {
 }
 window.addEventListener('cloud-levels-ready', () => {
   if (window.cloudLevels && window.cloudLevels.length) {
+    // Сохраняем текущий прогресс перед перезаписью структуры
+    const currentProgress = {};
+    levels.forEach(lv => {
+      currentProgress[lv.id] = { completed: lv.completed, stars: lv.stars };
+    });
+
     levels = window.cloudLevels;
-    // Восстанавливаем прогресс игрока после перезаписи структуры уровней
-    if (window._playerLevelData) {
-      levels.forEach(lv => {
-        const saved = window._playerLevelData[lv.id];
-        if (saved) { lv.completed = saved.completed; lv.stars = saved.stars; }
-      });
-    }
+
+    // Восстанавливаем прогресс (playerLevelData — из handleGoogleSignIn)
+    levels.forEach(lv => {
+      const prog = window.playerLevelData?.[lv.id] ?? currentProgress[lv.id];
+      if (prog) { lv.completed = prog.completed || false; lv.stars = prog.stars || 0; }
+    });
   }
   updateTitleButtons();
   if (!document.getElementById('screen-map').classList.contains('hidden')) renderMap();
@@ -1552,7 +1555,14 @@ function toggleMusic(){
   }
 }
 function continueGame() {
-  showScreen('map');
+  for (let i = 0; i < levels.length; i++) {
+    const unlocked = i === 0 || levels[i - 1].completed;
+    if (unlocked && !levels[i].completed) {
+      startLevel(i);
+      return;
+    }
+  }
+  showScreen('map'); // все пройдены — показать карту
 }
 
 function updateTitleButtons() {
