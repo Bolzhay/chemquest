@@ -989,7 +989,10 @@ function endBattle(won) {
   const lv       = levels[gameData.currentLevelIndex];
   const prevStars = lv.stars;       // звёзды ДО этого боя
   const wasCompleted = lv.completed;
-
+// ── Расчёт XP ──
+    let xpGain  = 0;
+    let xpLabel = '';
+    let xpClass = '';
   if (won) {
     const total = gameData.battleCorrect + gameData.battleWrong;
     const ratio = total > 0 ? gameData.battleCorrect / total : 0;
@@ -997,11 +1000,7 @@ function endBattle(won) {
     lv.completed = true;
     lv.stars = Math.max(prevStars, newStars);
 
-    // ── Расчёт XP ──
-    let xpGain  = 0;
-    let xpLabel = '';
-    let xpClass = '';
-
+    
     if (!wasCompleted) {
       // Первое прохождение — полный XP
       xpGain  = gameData.battleXP;
@@ -1041,7 +1040,8 @@ function endBattle(won) {
     document.getElementById('result-title').textContent = '💀 ПОРАЖЕНИЕ...';
     document.getElementById('result-title').className   = 'result-title defeat';
     document.getElementById('result-stars').textContent = '💔';
-    const xpConsol = Math.floor(gameData.battleXP / 2);
+   const xpConsol = Math.floor(gameData.battleXP / 2);
+    xpGain = xpConsol;
     gameData.playerXP += xpConsol;
     document.getElementById('result-score').textContent = '+' + xpConsol + ' XP (утешительные)';
     document.getElementById('result-score').className   = 'result-score xp-reward no-xp';
