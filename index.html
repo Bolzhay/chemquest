@@ -1326,9 +1326,9 @@ function autoSave() {
   // Накапливаем статистику
 const st = JSON.parse(localStorage.getItem('chemqueststats') || '{"q":0,"c":0,"t":0}');
 if (gameData.battleTotalTime > 0) {
-  _st.q += (gameData.battleCorrect + gameData.battleWrong);
-  _st.c += gameData.battleCorrect;
-  _st.t += gameData.battleTotalTime;
+  st.q += (gameData.battleCorrect + gameData.battleWrong);
+  st.c += gameData.battleCorrect;
+  st.t += gameData.battleTotalTime;
   gameData.battleTotalTime = 0;
   localStorage.setItem('chemquest_stats', JSON.stringify(_st));
 }
@@ -1798,6 +1798,7 @@ async function saveToLeaderboard() {
     levels.forEach(lv => {
       levelData[lv.id] = { completed: lv.completed, stars: lv.stars };
     });
+    const totalStars = levels.reduce((sum, lv) => sum + (lv.stars || 0), 0);
     await window.fsSetDoc(
       window.fsDoc(window.db, 'leaderboard', window.firebaseUID),
       {
