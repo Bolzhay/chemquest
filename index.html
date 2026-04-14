@@ -1347,25 +1347,22 @@ if (gameData.battleTotalTime > 0) {
   saveToLeaderboard();
 }
 window.addEventListener('cloud-levels-ready', () => {
-  if (window.cloudLevels && window.cloudLevels.length) {
-    // Сохраняем текущий прогресс перед перезаписью структуры
-    const currentProgress = {};
-    levels.forEach(lv => {
-      currentProgress[lv.id] = { completed: lv.completed, stars: lv.stars };
-    });
+  if (!window.cloudLevels || !window.cloudLevels.length) return;
 
-    levels = window.cloudLevels;
-    levels.forEach(lv => {
-  const prog = window.playerLevelData?.[lv.id] ?? currentProgress[lv.id];
-  if (prog) { lv.completed = prog.completed || false; lv.stars = prog.stars || 0; }
-});
+  // Сохраняем текущий прогресс (из localStorage) перед заменой структуры уровней
+  const currentProgress = {};
+  levels.forEach(lv => currentProgress[lv.id] = { completed: lv.completed, stars: lv.stars });
 
-    // Восстанавливаем прогресс (playerLevelData — из handleGoogleSignIn)
-    levels.forEach(lv => {
-      const prog = window.playerLevelData?.[lv.id] ?? currentProgress[lv.id];
-      if (prog) { lv.completed = prog.completed || false; lv.stars = prog.stars || 0; }
-    });
-  }
+  // Заменяем структуру уровней облачной версией
+  levels = window.cloudLevels;
+
+  // Восстанавливаем прогресс игрока
+  levels.forEach(lv => {
+    const prog = currentProgress[lv.id];
+    lv.completed = prog ? (prog.completed || false) : false;
+    lv.stars     = prog ? (prog.stars    || 0)     : 0;
+  });
+
   updateTitleButtons();
   if (!document.getElementById('screen-map').classList.contains('hidden')) renderMap();
 });
@@ -1794,11 +1791,11 @@ async function saveToLeaderboard() {
    const st = JSON.parse(localStorage.getItem('chemqueststats') || '{"q":0,"c":0,"t":0}');
     const avgAccuracy = st.q > 0 ? Math.round((st.c / st.q) * 100) : 0;
     const avgSpeed    = st.q > 0 ? Math.round(st.t / st.q) : 0;
+     const totalStars = levels.reduce((sum, lv) => sum + (lv.stars || 0), 0);
     const levelData   = {};
     levels.forEach(lv => {
       levelData[lv.id] = { completed: lv.completed, stars: lv.stars };
     });
-    const totalStars = levels.reduce((sum, lv) => sum + (lv.stars || 0), 0);
     await window.fsSetDoc(
       window.fsDoc(window.db, 'leaderboard', window.firebaseUID),
       {
