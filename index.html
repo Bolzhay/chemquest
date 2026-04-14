@@ -991,7 +991,7 @@ function endBattle(won) {
     const total = gameData.battleCorrect + gameData.battleWrong;
     const ratio = total > 0 ? gameData.battleCorrect / total : 0;
     const newStars = ratio >= 0.9 ? 3 : ratio >= 0.6 ? 2 : 1;
-
+const wasCompleted = lv.completed;
     lv.completed = true;
     lv.stars = Math.max(prevStars, newStars);
 
@@ -1749,6 +1749,34 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 });
+async function saveToLeaderboard() {
+  if (!window.firebaseReady || !window.firebaseUID) return;
+  try {
+    const st = JSON.parse(localStorage.getItem('chemqueststats') || '{"q":0,"c":0,"t":0}');
+    const totalStars = levels.reduce((s, lv) => s + (lv.stars || 0), 0);
+    const avgAccuracy = st.q > 0 ? Math.round((st.c / st.q) * 100) : 0;
+    const avgSpeed    = st.q > 0 ? Math.round(st.t / st.q) : 0;
+    const levelData   = {};
+    levels.forEach(lv => {
+      levelData[lv.id] = { completed: lv.completed, stars: lv.stars };
+    });
+    await window.fsSetDoc(
+      window.fsDoc(window.db, 'leaderboard', window.firebaseUID),
+      {
+        name: gameData.playerName,
+        xp: gameData.playerXP,
+        level: gameData.playerLevel,
+        stars: totalStars,
+        avgAccuracy,
+        avgSpeed,
+        levelData,
+        updatedAt: new Date().toISOString()
+      }
+    );
+  } catch(e) {
+    console.warn('saveToLeaderboard error:', e);
+  }
+}
 // ============ FIREBASE LEADERBOARD ============
 async function loadLeaderboard(mode='xp') {
   // Подсвечиваем активную вкладку
