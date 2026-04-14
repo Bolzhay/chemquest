@@ -850,6 +850,8 @@ function showScreen(name){
   document.getElementById('screen-'+name).classList.remove('hidden');
   if(name==='map')renderMap();
   if(name==='editor')renderEditor();
+    if (name === 'title') updateTitleButtons(); // ← добавь эту строку
+
 }
 function startGame(){gameData.currentLevelIndex=0;startLevel(0);}
 
@@ -1345,9 +1347,18 @@ if (gameData.battleTotalTime > 0) {
   saveToLeaderboard();
 }
 window.addEventListener('cloud-levels-ready', () => {
-  if (window._cloudLevels && window._cloudLevels.length) {
-    levels = window._cloudLevels;
+  if (window.cloudLevels && window.cloudLevels.length) {
+    levels = window.cloudLevels;
+    // Восстанавливаем прогресс игрока после перезаписи структуры уровней
+    if (window._playerLevelData) {
+      levels.forEach(lv => {
+        const saved = window._playerLevelData[lv.id];
+        if (saved) { lv.completed = saved.completed; lv.stars = saved.stars; }
+      });
+    }
   }
+  updateTitleButtons();
+  if (!document.getElementById('screen-map').classList.contains('hidden')) renderMap();
 });
 
 window.addEventListener('firebase-ready', () => {
@@ -1955,8 +1966,10 @@ async function handleGoogleSignIn() {
     gameData.playerXP    = data.xp    || 0;
     gameData.playerLevel = data.level || 1;
     gameData.playerHP    = 100;
+    window._playerLevelData = {};
     levels.forEach(lv => {
       const saved = data.levelData?.[lv.id];
+       window._playerLevelData[lv.id] = saved || { completed: false, stars: 0 };
       if (saved) { lv.completed = saved.completed; lv.stars = saved.stars; }
       else        { lv.completed = false; lv.stars = 0; }
     });
@@ -1967,6 +1980,17 @@ async function handleGoogleSignIn() {
     // Новый игрок — показать форму никнейма
     showNicknameForm();
   }
+}
+function continueGame() {
+  showScreen('map');
+}
+
+function updateTitleButtons() {
+  const hasProgress = levels.some(lv => lv.completed);
+  const btnStart    = document.querySelector('#screen-title .title-buttons .btn-primary[onclick*="startGame"]');
+  const btnContinue = document.getElementById('btn-continue');
+  if (btnStart)    btnStart.style.display    = hasProgress ? 'none' : '';
+  if (btnContinue) btnContinue.style.display = hasProgress ? ''     : 'none';
 }
 
 function showNicknameForm() {
