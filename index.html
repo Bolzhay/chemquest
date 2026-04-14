@@ -1019,9 +1019,10 @@ function endBattle(won) {
       xpClass = 'no-xp';
     }
 
-    if (!wasCompleted) gameData.playerXP += xpGain;
-
-    if (gameData.playerXP >= gameData.playerLevel * 100) gameData.playerLevel++;
+    if (!wasCompleted) {
+  gameData.playerXP += xpGain;
+  if (gameData.playerXP >= gameData.playerLevel * 100) gameData.playerLevel++;
+}
 
     document.getElementById('result-img').src = 'https://user-gen-media-assets.s3.amazonaws.com/gemini_images/3389c4f8-d2d6-41cc-bc73-94d853e952e4.png';
     document.getElementById('result-title').textContent = lv.isBoss ? '🏆 БОСС ПОБЕЖДЁН!' : '⚗️ ПОБЕДА!';
@@ -1052,6 +1053,7 @@ function endBattle(won) {
   document.getElementById('res-correct').textContent = gameData.battleCorrect;
   document.getElementById('res-wrong').textContent   = gameData.battleWrong;
   document.getElementById('res-xp').textContent = xpGain;
+  document.getElementById('res-combo').textContent   = gameData.maxCombo;
   showScreen('result');document.querySelectorAll('#screen-result .btn').forEach(b => b.disabled = false);
 
 }
@@ -1322,7 +1324,7 @@ function loadSave() {
 
 function autoSave() {
   // Накапливаем статистику
-const _st = JSON.parse(localStorage.getItem('chemquest_stats') || '{"q":0,"c":0,"t":0}');
+const st = JSON.parse(localStorage.getItem('chemqueststats') || '{"q":0,"c":0,"t":0}');
 if (gameData.battleTotalTime > 0) {
   _st.q += (gameData.battleCorrect + gameData.battleWrong);
   _st.c += gameData.battleCorrect;
@@ -1353,6 +1355,10 @@ window.addEventListener('cloud-levels-ready', () => {
     });
 
     levels = window.cloudLevels;
+    levels.forEach(lv => {
+  const prog = window.playerLevelData?.[lv.id] ?? currentProgress[lv.id];
+  if (prog) { lv.completed = prog.completed || false; lv.stars = prog.stars || 0; }
+});
 
     // Восстанавливаем прогресс (playerLevelData — из handleGoogleSignIn)
     levels.forEach(lv => {
@@ -1785,8 +1791,7 @@ document.addEventListener('DOMContentLoaded', () => {
 async function saveToLeaderboard() {
   if (!window.firebaseReady || !window.firebaseUID) return;
   try {
-    const st = JSON.parse(localStorage.getItem('chemqueststats') || '{"q":0,"c":0,"t":0}');
-    const totalStars = levels.reduce((s, lv) => s + (lv.stars || 0), 0);
+   const st = JSON.parse(localStorage.getItem('chemqueststats') || '{"q":0,"c":0,"t":0}');
     const avgAccuracy = st.q > 0 ? Math.round((st.c / st.q) * 100) : 0;
     const avgSpeed    = st.q > 0 ? Math.round(st.t / st.q) : 0;
     const levelData   = {};
