@@ -1018,7 +1018,7 @@ function endBattle(won) {
       xpClass = 'no-xp';
     }
 
-    if (!lv.completed) {
+    if (!levels[gameData.currentLevelIndex].completed) {
   gameData.playerXP += xpGain;
 }
     if (gameData.playerXP >= gameData.playerLevel * 100) gameData.playerLevel++;
@@ -1341,7 +1341,7 @@ if (gameData.battleTotalTime > 0) {
     completedLevels,
     lastSaved:       new Date().toISOString()
   }));
-  pushToLeaderboard();
+  saveToLeaderboard();
 }
 window.addEventListener('cloud-levels-ready', () => {
   if (window._cloudLevels && window._cloudLevels.length) {
@@ -1948,7 +1948,7 @@ async function startNewGame() {
 
   autoSave();
   document.getElementById('player-name-map').textContent = name;
-  await pushToLeaderboard(); // сразу фиксируем имя в Firebase
+  await saveToLeaderboard(); // сразу фиксируем имя в Firebase
   showStartScreen();
 }
 
