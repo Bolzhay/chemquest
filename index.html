@@ -1051,7 +1051,8 @@ function endBattle(won) {
   document.getElementById('res-correct').textContent = gameData.battleCorrect;
   document.getElementById('res-wrong').textContent   = gameData.battleWrong;
   document.getElementById('res-xp').textContent      = gameData.playerXP;
-  showScreen('result');
+  showScreen('result');document.querySelectorAll('#screen-result .btn').forEach(b => b.disabled = false);
+
 }
 function goToNextLevel(){if(gameData.currentLevelIndex<levels.length-1)startLevel(gameData.currentLevelIndex+1);}
 function replayLevel(){startLevel(gameData.currentLevelIndex);}
@@ -1883,51 +1884,6 @@ if (mode === 'xp' && myRank >= 10) {
   }
 }
 
-async function loadLeaderboard() {
-  const list = document.getElementById('leaders-list');
-  if (!list) return;
-  list.innerHTML = '<div style="text-align:center;color:var(--color-text-muted);font-family:\'Press Start 2P\',monospace;font-size:var(--text-xs);padding:var(--space-8)">⏳ Загрузка...</div>';
-
-  if (!window._firebaseReady) {
-    list.innerHTML = '<div style="text-align:center;color:var(--color-wrong);font-family:\'Press Start 2P\',monospace;font-size:var(--text-xs);padding:var(--space-8)">⚠ Firebase не подключён</div>';
-    return;
-  }
-
-  try {
-    const q    = window._fsQuery(
-      window._fsCollection(window._db, 'leaderboard'),
-      window._fsOrderBy('xp', 'desc'),
-      window._fsLimit(10)
-    );
-    const snap = await window._fsGetDocs(q);
-    const myId = getPlayerId();
-
-    if (snap.empty) {
-      list.innerHTML = '<div style="text-align:center;color:var(--color-text-muted);font-family:\'Press Start 2P\',monospace;font-size:var(--text-xs);padding:var(--space-8)">Пока никто не играл 👀</div>';
-      return;
-    }
-
-    list.innerHTML = '';
-    const medals = ['🥇','🥈','🥉'];
-
-    snap.docs.forEach((docSnap, i) => {
-      const d    = docSnap.data();
-      const isMe = docSnap.id === myId;
-      const row  = document.createElement('div');
-      row.className = 'leader-row' + (isMe ? ' is-me' : '');
-      row.innerHTML = `
-        <span class="leader-rank">${medals[i] || (i + 1)}</span>
-        <span class="leader-name">${esc(d.name)}${isMe ? ' <span style="color:var(--color-primary)">(ты)</span>' : ''}</span>
-        <span class="leader-stars">⭐ ${d.stars || 0}</span>
-        <span class="leader-xp">${d.xp || 0} XP</span>
-      `;
-      list.appendChild(row);
-    });
-  } catch(e) {
-    list.innerHTML = '<div style="text-align:center;color:var(--color-wrong);font-family:\'Press Start 2P\',monospace;font-size:var(--text-xs);padding:var(--space-8)">⚠ Ошибка загрузки</div>';
-    console.warn('Firebase load error:', e);
-  }
-}
 
 function getPlayerId() {
   return window._firebaseUID || localStorage.getItem('chemquest_player_id') || 'anonymous';
