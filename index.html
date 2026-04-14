@@ -1018,7 +1018,9 @@ function endBattle(won) {
       xpClass = 'no-xp';
     }
 
-    gameData.playerXP += xpGain;
+    if (!lv.completed) {
+  gameData.playerXP += xpGain;
+}
     if (gameData.playerXP >= gameData.playerLevel * 100) gameData.playerLevel++;
 
     document.getElementById('result-img').src = 'https://user-gen-media-assets.s3.amazonaws.com/gemini_images/3389c4f8-d2d6-41cc-bc73-94d853e952e4.png';
@@ -1818,13 +1820,34 @@ async function loadLeaderboard(mode='xp') {
           const xpAbove = (allDocs[i-1]?.data().xp || 0);
           const gap = xpAbove - (d.xp || 0) + 1;
           gapHtml = `<span style="font-size:var(--text-xs);color:var(--color-text-muted);display:block;margin-top:2px;">+${gap} XP до ↑</span>`;
-        } else if (isMe && myRank >= 10) {
-          const gap = top10XP - (d.xp || 0) + 1;
-          gapHtml = `<span style="font-size:var(--text-xs);color:var(--color-gold);display:block;margin-top:2px;">+${gap} XP до топ-10</span>`;
+        
         }
         metricHtml = `<span class="leader-xp" style="display:flex;flex-direction:column;align-items:flex-end;">${d.xp||0} XP${gapHtml}</span>`;
       }
-
+// Игрок ниже топ-10 — показать отдельно внизу
+if (mode === 'xp' && myRank >= 10) {
+  const myDoc = allDocs[myRank];
+  if (myDoc) {
+    const d = myDoc.data();
+    const gap = Math.max(0, top10XP - (d.xp || 0) + 1);
+    const sep = document.createElement('div');
+    sep.style.cssText = 'color:var(--color-text-faint);text-align:center;font-size:var(--text-xs);padding:var(--space-2)';
+    sep.textContent = '· · ·';
+    list.appendChild(sep);
+    const row = document.createElement('div');
+    row.className = 'leader-row is-me';
+    row.innerHTML = `
+      <span class="leader-rank">${myRank + 1}</span>
+      <span class="leader-name">${esc(d.name)} <span style="color:var(--color-primary)">(ты)</span></span>
+      <span class="leader-stars">⭐ ${d.stars || 0}</span>
+      <span class="leader-xp" style="display:flex;flex-direction:column;align-items:flex-end;">
+        ${d.xp || 0} XP
+        <span style="font-size:10px;color:var(--color-gold);display:block;margin-top:2px;">+${gap} XP до топ-10</span>
+      </span>
+    `;
+    list.appendChild(row);
+  }
+}
       row.innerHTML = `
         <span class="leader-rank">${medals[i] || (i + 1)}</span>
         <span class="leader-name">${esc(d.name)}${isMe ? ' <span style="color:var(--color-primary)">(ты)</span>' : ''}</span>
